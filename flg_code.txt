@@ -1,0 +1,1289 @@
+#############################################################
+#
+# Ref to the ARTICLE
+# 
+# Manuel Blank, Pilar Morera Margarit & Davide Bulgarelli
+# 
+# m.blank@dundee.ac.uk
+# 
+# d.bulgarelli@dundee.ac.uk
+# 
+#
+#############################################################
+
+############################################################
+#useful tutorials
+#https://joey711.github.io/phyloseq/tutorials-index.html
+############################################################
+
+#############################################################
+# Clean-up the memory and start a new session
+#############################################################
+
+rm(list=ls())
+dev.off()
+
+#############################################################
+# Libraries required
+#############################################################
+
+#1st time installation
+#source("http://bioconductor.org/biocLite.R")
+#biocLite("phyloseq")
+#biocLite("DESeq2")
+#biocLite("PMCMR")
+#from here on: requirements for ANCOM package (installed from zip file)
+#biocLite("exactRankTests")
+#biocLite("openxlsx")
+#biocLite("DT")
+#biocLite("coin")
+#biocLite("grid")
+#biocLite("futile.logger")
+
+#required packages 
+library("phyloseq")
+library("DESeq2")
+library("ggplot2")
+library("vegan")
+library ("ape")
+library("PMCMR")
+library("plyr")
+library("VennDiagram")
+library("grid")
+library("futile.logger")
+#from here on: requirements for ANCOM package (installed from zip file)
+#library("exactRankTests")
+#library("openxlsx")
+#library("DT")
+#library("coin")
+#library("ancom.R")
+
+
+
+#set the working directory (mind that your working directory has a different path)
+setwd("G:/Uni/MSci/Box Sync/Davide_lab_experiments/JH03_JH05_MB/JH03_JH05_R_analysis")
+#Davide cpu
+#setwd("C:/Users/DB42008/Box Sync/Davide_lab_experiments/JH03_JH05_MB/JH03_JH05_R_analysis/")
+
+#############################################################
+#import the count matrix and the desing file
+#############################################################
+
+
+#OTU table generated using QIIME 1.9.0. open ref. 
+dat_info <- read.delim("JH03_JH05_MB_otu_table_nc2.txt", skip=1, sep = "\t", header=T, row.names= 1, blank.lines.skip = FALSE)
+
+#inspect the file 
+dim(dat_info)
+colnames(dat_info)
+length(colnames(dat_info)) -1
+
+#extract the total number of reads clustered at OTU 97% identiy (the number underneath the Hv identifier represents the total number of reads clustered for that sample)
+#ERROR: the previous line was OTU_97_reads <- sort(colSums(dat_info[, 1:108])). Subsetting should be [, 1:110].
+#For future consistency changed subsetting to general format of '[, 1:length(colnames(dat_info)) -1]'
+OTU_97_reads <- sort(colSums(dat_info[, 1:length(colnames(dat_info)) -1]))
+OTU_97_reads
+
+#total reads
+#same as above
+OTU_97_reads_sum <- sum(colSums(dat_info[, 1:length(colnames(dat_info)) -1]))
+OTU_97_reads_sum
+
+#design file
+design <- read.delim("Map_JH0305_MB.txt", sep = "\t", header=TRUE, row.names=1)
+design
+
+#remove chloroplast and mitochondria OTUs from the original dataset
+Chloroplast <- dat_info[grepl("Chloroplast", dat_info$ConsensusLineage), ]
+dim(Chloroplast)
+
+mitochondria <- dat_info[grepl("mitochondria", dat_info$ConsensusLineage), ]
+dim(mitochondria)
+
+#set a difference between the row names of the the three datasets: this information will be used to filter out Plant derived OTUs from the OTU table
+noPlants <- setdiff(rownames(dat_info), c(rownames(Chloroplast), rownames(mitochondria)))
+
+#inspect the results
+length(rownames(dat_info))
+length(noPlants)
+
+#save the OTUids list generated at line 81. This will be used to usbset the OTU table and generate taxa-tables in QIIME
+#write(noPlants, "JH05_noPlant_OTUs_id.txt")
+
+#generate a new OTU table which will be devoid of Chloroplast and Mitochondria OTUs
+dat_info_noPlants <- dat_info[noPlants, ]
+
+#create a new count matrix without OTUs assigned to Chloroplast and Mitochondria
+dat_count <- dat_info[, rownames(design)]
+dat_count_noplants <- dat_info[noPlants, rownames(design)]
+dim(dat_count_noplants)
+
+#and a new taxa table
+dat_tax_noPlants <- as.data.frame(dat_info[rownames(dat_count_noplants), 111])
+rownames(dat_tax_noPlants) <- rownames(dat_count_noplants)
+#save the above file and in excel we will create a new tax table where each column represents a taxonomic rank
+#write.table(dat_tax_noPlants, file="JH0305_dat_tax_noPlants.txt", sep="\t")
+#Excel file renamed to JH03_JH05_dat_tax_noPlants_ordered.txt.txt
+
+#check the effect of mitochondria/chloroplast depletion on the new OTU table
+#with plant sequences
+dim(dat_count)
+
+#w/o plant-derived sequences
+dim(dat_count_noplants)
+
+#total number of reads w/o plant sequences
+OTU_97_reads_noPlants <- colSums(dat_count_noplants)
+OTU_97_reads_noPlants
+
+#now sort per sample
+sort(OTU_97_reads_noPlants)
+
+#total number of reads
+OTU_97_reads_noPlants_sum <- sum(OTU_97_reads_noPlants)
+OTU_97_reads_noPlants_sum 
+
+#Define the proportion of non-plant reads in the original dataset 
+useful_reads <- (OTU_97_reads_noPlants_sum/OTU_97_reads_sum)*100
+useful_reads
+
+#create a dataset to visualise the proportion of reads per sample before and after removing OTUs assigned to chloroplast and mitochondria
+OTU_97_reads_noPlants <- as.data.frame(OTU_97_reads_noPlants)
+OTU_97_microbial_reads_proportion <- as.data.frame(colSums(dat_count_noplants)/colSums(dat_count))*100
+
+#rename the columns in the generated datasets
+colnames(OTU_97_reads_noPlants) <- c("reads")
+colnames(OTU_97_microbial_reads_proportion) <- c("Microbial_OTUs_reads")
+
+#combine these datasets with the design file
+design_info <- cbind(design, OTU_97_reads_noPlants)
+design_info_2 <- cbind(design_info, OTU_97_microbial_reads_proportion)
+
+#calculate the max, min and mean number of reads for the dataset
+mean(design_info_2$reads)
+max(design_info_2$reads)
+min(design_info_2$reads)
+
+##############################################################
+
+#visualise property of the sequencing library
+
+#re-order the factors for the Microhabitat
+design_info_2$Microhabitat <- ordered(design_info_2$Microhabitat, levels=c("Bulk", "Rhizosphere"))
+
+#visualisation of read distriution of individual experiments
+with(design_info_2, boxplot(reads ~ Microhabitat, xlab = "Microhabitat", ylab = "number of reads",   main = "Sequencing depth, microbial reads"))
+
+#visualisation of percentage of microbial OTUs (vs. Plastids)
+with(design_info_2, boxplot(Microbial_OTUs_reads ~ Microhabitat, xlab = "Microhabitat", ylab = "% of sequencing reads",   main = "Microbial OTUs reads"))
+
+
+#############################################################
+#Genererate the phyloseq object
+#############################################################
+#This is a file that include all the relevant information for the analysis: the OTU table, the taxonmy information, the phylogenetic tree and a mapping file 
+#again the concept of Operational Taxonomic Unit is explained here https://en.wikipedia.org/wiki/Operational_taxonomic_unit 
+#and also in some of my reviews (see Bulgarelli et al., 2013 Annual Review of Plant Biology or Schlaeppi and Bulgarelli, MPMI 2014)
+
+#The phyloseq package and the phyloseq object is just gorgeous. Because it creates a file that recapitulates 
+#a) The OTU Table counts. This is a n rows x m columns dataframe, where n represents the individual OTUs clustered at 97% sequence similarity and m the samples. The cells of the dataframe are "filled" with the sequencing reads (often reported as just reads) generated in MiSeq and assigned to that OTU in given a given sample
+#b) The taxonomy information. For each of the n OTUs, a representative sequence (the most abudant in the cluster) has been used to query a database containing the taxonomy information for Prokaryotes and identify the bugs closely related to that given OTUs
+#c) The mapping file (oftend reported as a design file or metadata): it says what the samples are, from where they come from and also it includes additional attributes that can be used in the analysis to correlate microbiota data with host traits (e.g., treatment, dry weight...)
+#d) The phylogenetic tree. A phylogenetic tree is a graphical representation of the evolutionary relationships among organisms. In our partcular case we deal with a "gene tree". 
+#A tree is composed by two elements: nodes, representing the feature of the organisms under study (in our case individual OTUs), and branches connecting nodes, defining the relationships among nodes (e.g., sequence diversity among the 16S rRNA gene sequences we are analysing using)
+
+
+#Now the two big advantages of phyloseq are: 
+#1) once created a phyloseq object, you can manipulate simoultaneously all the relevant components at once (e.g., removing samples, removing OTUs) something that otherwise will take you ages and quite possibly a lot of mistake
+#2) the second advantage is that phyloseq is a wrapper that can be used directly for a variety of data visualisation and calculation (this will be illustrated below)
+
+#Ok let' start
+
+#a) The OTU Table counts
+#mind that the file dat_count_noplants has been generated above  
+JH03_JH05_OTU <- otu_table(dat_count_noplants, taxa_are_rows=TRUE)
+
+#b) The taxonomy information
+#Note that the file JH02_JH03_dat_tax_noPlants_ordered.txt has been generated from the output of lines 96-100  
+#it is a tab-delimited file with 8 columns, the column headers are: OTU id; "Kingdom", "Phylum",  "Class",   "Order",   "Family",  "Genus",   "Species",
+JH03_JH05_taxa_ordered <- read.delim ("JH03_JH05_dat_tax_noPlants_ordered.txt", sep = "\t", row.names=1, header=T, blank.lines.skip = FALSE)
+JH03_JH05_taxa <- tax_table(as.matrix(JH03_JH05_taxa_ordered))
+dim(JH03_JH05_taxa)
+
+#c)The mapping file 
+JH03_JH05_map <- sample_data(design)
+
+#The phylogenetic tree: closed ref. The tree is rooted, therefore skip lines 180-196
+JH03_JH05_tree  <- read_tree_greengenes("97_otus.tree.gz")
+
+is.rooted(JH03_JH05_tree)
+
+
+
+#merge the files and create the phyloseq object
+JH03_JH05_data_phyloseq <- merge_phyloseq(JH03_JH05_OTU, JH03_JH05_taxa, JH03_JH05_map,  JH03_JH05_tree)
+
+#inspect the generated data
+JH03_JH05_data_phyloseq
+sum(colSums(otu_table(JH03_JH05_data_phyloseq)))
+dim(dat_count_noplants)
+sum(colSums(dat_count_noplants))
+
+
+#############################################################
+#Pre-processing
+#There are couple of things to do before we can start the analysis
+#the first one is to inspect the distribution of reads per sample
+sort(colSums(otu_table(JH03_JH05_data_phyloseq)))
+#we can visualise them
+hist(sort(colSums(otu_table(JH03_JH05_data_phyloseq))))
+
+
+#Remove samples with <12000 reads. (I.e. remove sample with only 4 reads and remove Hv1109 as it decreases the readcount severely later in alpha diversity calculation of the flg experiment
+#(check again when analysing BRI1!!!).)
+#It is possible that these 4 reads led to the definition of an OTU that is now still in the phyloseq object, but has 0 reads in all samples.
+#Will need to run another line to remove the potential 'ghost-OTU'.
+JH03_JH05_data_phyloseq_2 <- prune_samples(sample_sums(JH03_JH05_data_phyloseq)>=12000, JH03_JH05_data_phyloseq)
+JH03_JH05_data_phyloseq_2
+
+#remove empty OTUs
+JH03_JH05_data_phyloseq_3 <- prune_taxa(taxa_sums(JH03_JH05_data_phyloseq_2) > 0, JH03_JH05_data_phyloseq_2)
+JH03_JH05_data_phyloseq_3
+
+
+#The first thing is to compensate for the discrepancies in sequencing depth among samples, and we will adopt a relative abundance transformation
+#Note that this is matter of huge debate, we will come back later to that, let's have quick look at both dataset 
+#first transform to even sampling depth (proportional transformation)
+JH03_JH05_data_phyloseq_prop <- transform_sample_counts(JH03_JH05_data_phyloseq_3,  function(x) 1e+06 * x/sum(x))
+
+#OK let's inspect our dataset using a  Non-metric multidimensional scaling
+#A Non-metric multidimensional scaling (NMDS) is an ordination method that ranks distance between objects and uses these ranks
+#to map the objects into a 2-D space to preserve their ranked distance not the original distnace. It is an iterative approach that
+#whose final output is determined by the lowest level of "stress". The stress value reflects how well the ordination summarises the real data.
+#Number of samples, very distinct experiments may reslult in higher level of stress
+#There is no a general consensus, but stress values above 0.2 should be handled with care
+
+#Pro: NMDS accepts any kind of distance measure and samples (no assumption on their distribution)
+#Cons: is a rank-based analysis and it says basically nothing on real whitin or between sample distances (just that some samples are more similar than others)
+
+#NMDS bray
+JH03_JH05_data_phyloseq_prop.NMDS_bray <- ordinate(JH03_JH05_data_phyloseq_prop, "NMDS", "bray")
+#stress value is OK at 0.1, at 0,2 the plot is not really significant
+#the warning message is something that will become clearer soon
+
+#Plot
+plot_ordination(JH03_JH05_data_phyloseq_prop, JH03_JH05_data_phyloseq_prop.NMDS_bray , color = "LibraryID", shape = "Soil")
+plot_ordination(JH03_JH05_data_phyloseq_prop, JH03_JH05_data_phyloseq_prop.NMDS_bray , color = "LibraryID", shape = "Experiment")
+#It's clear that the two experiments couldn't be more different
+
+#weighted unifrac distance: let's take into consideration phylogenetic assignemtns
+JH03_JH05_data_phyloseq_prop_wunifrac <- ordinate(JH03_JH05_data_phyloseq_prop, "NMDS", "unifrac", weighted=TRUE)
+#see note about NMDS stress: same as before...
+plot_ordination(JH03_JH05_data_phyloseq_prop, JH03_JH05_data_phyloseq_prop_wunifrac , color = "LibraryID", shape = "Soil")
+plot_ordination(JH03_JH05_data_phyloseq_prop, JH03_JH05_data_phyloseq_prop_wunifrac , color = "LibraryID", shape = "Experiment")
+
+#Now we can draw a first conclusion: the two datasets are so distinct that cannot be analysed simoultaneously
+
+
+#######################################
+#Split flg and BRI1 experiments  (use the altered dataset for this (with removed sample and no ghost OTUs))
+#######################################
+
+#Subset samples takes the phyloseq object and a value by which it is subsetted.
+#Flagellin experiment
+JH03_JH05_data_phyloseq_flg <- subset_samples(JH03_JH05_data_phyloseq_3, Experiment=="Flagellin")
+#BRI1 experiment
+JH03_JH05_data_phyloseq_bri <- subset_samples(JH03_JH05_data_phyloseq_3, Experiment=="BRI1")
+
+
+#Now we need to make sure that during the subsetting we haven't retained "ghost" OTUs: OTUs present in one dataset and with 0 counts in the samples of the other datasets
+#Good example in the help page of prune_taxa
+#MB experiment
+JH03_JH05_data_phyloseq_flg_2 <- prune_taxa(taxa_sums(JH03_JH05_data_phyloseq_flg) > 0, JH03_JH05_data_phyloseq_flg) 
+#PMM experiment
+JH03_JH05_data_phyloseq_bri_2 <- prune_taxa(taxa_sums(JH03_JH05_data_phyloseq_bri) > 0, JH03_JH05_data_phyloseq_bri) 
+
+
+
+##############################
+#Abundance filtering flagellin data
+##############################
+
+#Pre-processing 
+#It is advisable to remove OTUs with low counts because these OTUs are poorly reproducible and will interefere with the analysis rather than adding biologically meningful information
+#you have 80 samples with 5 reps each 5/60 * 100 = we could retain OTUs that are observed 5 times (number of replicates per condition) in at least 8% (0.08*length(x)) of the samples
+JH03_JH05_data_phyloseq_flg_3 = filter_taxa(JH03_JH05_data_phyloseq_flg_2, function(x) sum(x > 5) > (0.08*length(x)), TRUE)
+
+#Let's inspect the effect of this abundance threshold
+#total number of OTUs
+flg_2_OTUs <- length(rownames(otu_table(JH03_JH05_data_phyloseq_flg_2)))
+flg_3_OTUs <- length(rownames(otu_table(JH03_JH05_data_phyloseq_flg_3)))
+#proportion
+flg_3_OTUs/flg_2_OTUs * 100
+#total number of reads
+flg_2_reads <- sum(colSums(otu_table(JH03_JH05_data_phyloseq_flg_2)))
+flg_3_reads <- sum(colSums(otu_table(JH03_JH05_data_phyloseq_flg_3)))
+#proportion
+flg_3_reads/flg_2_reads * 100
+
+
+
+################################
+#Alphadiversity calculation
+###############################
+
+#alphadiversity calculation
+#For theoretical info on alphadiversity see slide 29 of the QIIME tutorial (for this work only Chao1 and Shannon indices computed)
+
+#use a rerefied dataset
+set.seed(711)
+JH03_JH05_data_phyloseq_flg_3_rare <- rarefy_even_depth(JH03_JH05_data_phyloseq_flg_3)
+
+#now compare the two datasets
+JH03_JH05_data_phyloseq_flg_3
+JH03_JH05_data_phyloseq_flg_3_rare 
+
+#number of reads per sample: original dataset different reads per sample
+sample_sums(JH03_JH05_data_phyloseq_flg_3)
+sample_sums(JH03_JH05_data_phyloseq_flg_3_rare)
+
+#Total amount of reads
+sum(sample_sums(JH03_JH05_data_phyloseq_flg_3))
+sum(sample_sums(JH03_JH05_data_phyloseq_flg_3_rare))
+
+#~90% loss of total reads as all samples are rarefied to ~11000. The next more abundant sample has ~26000 reads.
+#Reran the code after discarding Hv1109.
+
+#OK let's try to visualise these info via boxplot
+JH03_JH05_alpha_flg_rare <-  estimate_richness(JH03_JH05_data_phyloseq_flg_3_rare, measures = c("Chao1", "Shannon"))
+#inspect the generated file
+class(JH03_JH05_alpha_flg_rare)
+JH03_JH05_alpha_flg_rare
+#perfect now we have a dataframe: we can generated box plots and calculate some stats (i.e. are the microbiotas associated with our samples different)
+#Let's use the code I used in the barley manuscript on Cell Host and Microbe
+#First we need to combine the design file with the index files (else we cannot group ecotypes together)
+
+#To retrieve information from modified design file, retrieve it from the phyloseq object
+design_flg <- as.data.frame(sample_data(JH03_JH05_data_phyloseq_flg_3))
+design_flg
+
+#Check if order of the samples is the same before combining data frames
+rownames(design_flg) == rownames(JH03_JH05_alpha_flg_rare)
+
+
+JH03_JH05_alpha_flg_rare_info <- cbind(design_flg, JH03_JH05_alpha_flg_rare)
+#check the new dataset: it contains both description of the samples and alpha 
+JH03_JH05_alpha_flg_rare_info
+
+#generate a box plot for chao1 index 
+#re-order the factors
+JH03_JH05_alpha_flg_rare_info$Description <- ordered(JH03_JH05_alpha_flg_rare_info$Description, levels=c("BulkMockQ", "RhizosphereMockQ", "BulkFlg22AgroQ", "RhizosphereFlg22AgroQ", "BulkFlg22PsyQ", "RhizosphereFlg22PsyQ",
+                                                                                                         "BulkMockT", "RhizosphereMockT", "BulkFlg22AgroT", "RhizosphereFlg22AgroT", "BulkFlg22PsyT", "RhizosphereFlg22PsyT"))
+
+#With the new descriptions that include the soil type: Is this still needed?
+JH03_JH05_alpha_flg_rare_info$Soil <- ordered(JH03_JH05_alpha_flg_rare_info$Soil, levels=c("Quarryfield", "Tayport"))
+
+#find ylim
+min(JH03_JH05_alpha_flg_rare_info$Chao1)
+max(JH03_JH05_alpha_flg_rare_info$Chao1)
+
+min(JH03_JH05_alpha_flg_rare_info$Shannon)
+max(JH03_JH05_alpha_flg_rare_info$Shannon)
+
+#Previously the first line was '...Chao1 ~ Description*Soil...' but since the Descriptions were altered to include the soil type, this could be removed.
+#Chao1 - export 1068x...
+with(JH03_JH05_alpha_flg_rare_info, boxplot  (Chao1 ~ Description, xaxt = "n", main = "Chao1 index of rarefied dataset", ylim = c(1000,2500), par(mar = c(7, 4, 2, 2)), las = 1, space = 1))
+mtext(side = 1, text = "Quarryfield                                                                                                                               Tayport", line = 6.1)
+mtext(side = 1, text = "___________________________________________________        __________________________________________________", line = 5.1)
+#mtext(side = 1, text = "        ab              ab              a               b             ab             ab         ab              ab              ab               ab             ab             ab", line = -23)
+mtext(side = 2, text = "Chao", line = 3)
+labelsChao <- paste(names(table(JH03_JH05_alpha_flg_rare_info$Description)))
+labelsChao2 <- gsub("* Samples", "", labelsChao)
+text(seq(1, length(labelsChao2) ,by=1), par("usr")[3], 
+     srt = 40, adj= 1.1, xpd = TRUE,
+     labels = paste(labelsChao2), cex=0.85,
+     xaxt = "n")
+
+#Shannon Index - export 1068x...
+with(JH03_JH05_alpha_flg_rare_info, boxplot(Shannon ~ Description, xaxt = "n", main = "Shannon index of rarefied dataset", ylim = c(4,7), par(mar = c(7, 4, 2, 2)), las = 1, space = 1))
+mtext(side = 1, text = "Quarryfield                                                                                                                               Tayport", line = 6)
+mtext(side = 1, text = "_____________________________________________________        _____________________________________________________", line = 5.1)
+#mtext(side = 1, text = "        ab              ab              ab              ab             ab             ab         ab              ab              ab               ab             ab             ab", line = -23)
+mtext(side = 2, text = "Shannon", line = 3)
+labelsShannon <- paste(names(table(JH03_JH05_alpha_flg_rare_info$Description)))
+labelsShannon2 <- gsub("* Samples", "", labelsShannon)
+text(seq(1, length(labelsShannon2) ,by=1), par("usr")[3], 
+     srt = 40, adj= 1.1, xpd = TRUE,
+     labels = paste(labelsShannon2), cex=0.85,
+     xaxt = "n")
+
+
+#############################################################
+#Statistical Analysis on Alphadiversity
+
+#is data normally distributed? --> Histogram
+hist(JH03_JH05_alpha_flg_rare_info$Chao1)
+hist(JH03_JH05_alpha_flg_rare_info$Shannon)
+
+#is data normally distributed? --> qq-plot
+qqnorm(JH03_JH05_alpha_flg_rare_info$Chao1)
+qqline(JH03_JH05_alpha_flg_rare_info$Chao1, lty = 2)
+qqnorm(JH03_JH05_alpha_flg_rare_info$Shannon)
+qqline(JH03_JH05_alpha_flg_rare_info$Shannon, lty = 2)
+
+#is data normally distributed? --> shapiro-wilk test for normality
+shapiro.test(JH03_JH05_alpha_flg_rare_info$Chao1)
+shapiro.test(JH03_JH05_alpha_flg_rare_info$Shannon)
+# p<0.05 meaning data is NOT likely normally distributed.
+# --> need to use a non-parametric test as data is not normally distributed.
+
+
+#Assess soil effect on alphadiversity
+# variable left of '~' is the dependent variable, to the right of '~' it's the independent variable.
+wilcox.test(Chao1 ~ Soil, data = JH03_JH05_alpha_flg_rare_info)
+wilcox.test(Shannon ~ Soil, data = JH03_JH05_alpha_flg_rare_info)
+# Strong soil effect found --> treat experiments from different soils separately.
+
+
+# Split dataset
+quarry_samples <- row.names(JH03_JH05_alpha_flg_rare_info)[which(JH03_JH05_alpha_flg_rare_info$Soil == "Quarryfield")]
+JH03_JH05_alpha_flg_rare_info_quarryfield <- JH03_JH05_alpha_flg_rare_info[quarry_samples, ]
+
+tayport_samples <- row.names(JH03_JH05_alpha_flg_rare_info)[which(JH03_JH05_alpha_flg_rare_info$Soil == "Tayport")]
+JH03_JH05_alpha_flg_rare_info_tayport <- JH03_JH05_alpha_flg_rare_info[tayport_samples, ]
+
+#perform a non-parametric anova for individual (Soil) experiments
+kruskal.test(Chao1 ~ Description, data = JH03_JH05_alpha_flg_rare_info_quarryfield)
+#posthoc.kruskal.dunn.test (x=JH03_JH05_alpha_flg_rare_info_quarryfield$Chao1, g=JH03_JH05_alpha_flg_rare_info_quarryfield$Description, p.adjust.method="BH")
+#test for richness --> significant value
+
+kruskal.test(Shannon ~ Description, data = JH03_JH05_alpha_flg_rare_info_quarryfield)
+#test for evenness --> no significant value detected, skip the next line
+#posthoc.kruskal.dunn.test (x=JH03_JH05_alpha_flg_rare_info_quarryfield$Shannon, g=JH03_JH05_alpha_flg_rare_info_quarryfield$Description, p.adjust.method="BH")
+#data suggests that there is a difference in abundance, but not in composition.
+
+
+kruskal.test(Chao1 ~ Description, data = JH03_JH05_alpha_flg_rare_info_tayport)
+posthoc.kruskal.dunn.test (x=JH03_JH05_alpha_flg_rare_info_tayport$Chao1, g=JH03_JH05_alpha_flg_rare_info_tayport$Description, p.adjust.method="BH")
+
+kruskal.test(Shannon ~ Description, data = JH03_JH05_alpha_flg_rare_info_tayport)
+posthoc.kruskal.dunn.test (x=JH03_JH05_alpha_flg_rare_info_tayport$Shannon, g=JH03_JH05_alpha_flg_rare_info_tayport$Description, p.adjust.method="BH")
+
+
+
+
+#############################################################
+#Betadiversity (on rarefied dataset - no transformation to relative abundance needed)
+#first transform to even sampling depth (proportional transformation)
+#JH05_data_phyloseq_MB_3_prop <- transform_sample_counts(JH05_data_phyloseq_MB_3,  function(x) 1e+06 * x/sum(x))
+
+#OK let's inspect our dataset using a  Non-metric multidimensional scaling
+#A Non-metric multidimensional scaling (NMDS) is an ordination method that ranks distance between objects and uses these ranks
+#to map the objects into a 2-D space to preserve their ranked distance not the original distnace. It is an iterative approach that
+#whose final output is determined by the lowest level of "stress". The stress value reflects how well the ordination summarises the real data.
+#Number of samples, very distinct experiments may reslult in higher level of stress
+#There is no a general consensus, but stress values above 0.2 should be handled with care
+
+#Pro: NMDS accepts any kind of distance measure and samples (no assumption on their distribution)
+#Cons: is a rank-based analysis and it says basically nothing on real whitin or between sample distances (just that some samples are more similar than others)
+
+#NMDS bray (bray is the method the distance matrix is generated with, NMDS the ordination method)
+JH03_JH05_data_phyloseq_flg_rare.NMDS_bray <- ordinate(JH03_JH05_data_phyloseq_flg_3_rare, "NMDS", "bray")
+#stress value is OK at 0.1, at 0,2 the plot is not really significant
+
+#OK let's focus on the genotype value2
+p = plot_ordination(JH03_JH05_data_phyloseq_flg_3_rare, JH03_JH05_data_phyloseq_flg_rare.NMDS_bray, color = "Description", shape = "Soil" )
+p = p + geom_point(size = 5, alpha = 0.75)
+p + ggtitle("NMDS 16S data, Bray distance, Flagellin experiment")
+
+
+#OK let's try a PCoA
+#PCoA (with O not captial) is a Principal Coordinate Analysis derived from PCA (Principal Component Analysis)
+#Like NMDS, PCoA is an exploratory analysis useful to identify patterns and gradients. OK let's see how does it work:
+#We need to recall some of the theory of the PCA to understand PCoA. PCA calculates new synthetic variables that are linear combinations of original variables (in our case: OTUs) with the aim of representing a n x m matrix in a two dimensional space.
+#The cumulative percentage of variance accounted by for the axisi indicates how much variation is described by the plots.
+#PCAs do not work with any dissimilarity matrices and generally do not perform well with many zeros.
+#Instead, PCoA elaborates functions of the original variables (instead of linear combinations) and then generates two-dimensional plots (whose proportion of variance is explained in the similar way)
+#Because PCoA is not a linera combination of the original variables the axis do to explain directly a variable (but they can easily inferred).
+
+
+JH03_JH05_data_phyloseq_flg_3_rare.PCoA_bray <- ordinate(JH03_JH05_data_phyloseq_flg_3_rare, "PCoA", "bray")
+#now let's assign shapes to the Genotype
+p=plot_ordination(JH03_JH05_data_phyloseq_flg_3_rare, JH03_JH05_data_phyloseq_flg_3_rare.PCoA_bray, color = "Soil", shape="Microhabitat")
+p = p + geom_point(size = 5, alpha = 0.75)
+p + ggtitle("PCoA 16S data, Bray distance, Flagellin experiment")
+
+
+#constrained ordinations
+JH03_JH05_data_phyloseq_flg_3_rare.CAP_bray <- ordinate(JH03_JH05_data_phyloseq_flg_3_rare, "CAP", "bray", ~Microhabitat * Treatment)
+#now let's assign shapes to the Genotype
+p=plot_ordination(JH03_JH05_data_phyloseq_flg_3_rare, JH03_JH05_data_phyloseq_flg_3_rare.CAP_bray, color = "Description", shape="Soil")
+p = p + geom_point(size = 5, alpha = 0.75)
+p + ggtitle("CAP 16S data, Bray distance, Flagellin experiment")
+#asses the significance of the axes
+anova.cca(JH03_JH05_data_phyloseq_flg_3_rare.CAP_bray, permutations = 5000, first = FALSE)
+
+
+#weighted unifrac (unifrac is the method the distance matrix is generated, PCoA is the ordination method)
+JH03_JH05_data_phyloseq_flg_3_rare.PCoA_unifrac <- ordinate(JH03_JH05_data_phyloseq_flg_3_rare, "PCoA", "unifrac", weighted = TRUE)
+#now let's assign shapes to the Genotype
+p=plot_ordination(JH03_JH05_data_phyloseq_flg_3_rare, JH03_JH05_data_phyloseq_flg_3_rare.PCoA_unifrac, color = "Soil", shape="Microhabitat")
+p = p + geom_point(size = 5, alpha = 0.75)
+p + ggtitle("PCoA 16S data, wUnifrac distance, flg22 application")
+#use this as one of the result figures
+
+#calculate permanova on the dataset
+#WU distance
+WU <- phyloseq::distance(JH03_JH05_data_phyloseq_flg_3_rare, "unifrac", weighted= TRUE)
+adonis(WU ~ Soil * Microhabitat, data= design[colnames(otu_table(JH03_JH05_data_phyloseq_flg_3_rare)), ], permutations = 5000)
+
+
+#Why do we even do the bray distance matrix if unifrac is more relevant.
+#Similarly why do we do NMDS ordination?
+
+
+#Split rarefied phyloseq object by Microhabitat. Based on the previous plot, the soil and and microhabitat effects are evident, but what we want to know is the effect of the treatment.
+#So start with separating by microhabitat and then do a constrained ordination on the treatment.
+#Bulk soil habitat
+JH03_JH05_data_phyloseq_flg_3_rare_bulk <- subset_samples(JH03_JH05_data_phyloseq_flg_3_rare, Microhabitat=="Bulk")
+#Rhizosphere habitat
+JH03_JH05_data_phyloseq_flg_3_rare_rhizosphere <- subset_samples(JH03_JH05_data_phyloseq_flg_3_rare, Microhabitat=="Rhizosphere")
+
+#Bulk soil habitat
+JH03_JH05_data_phyloseq_flg_3_rare_bulk_2 <- prune_taxa(taxa_sums(JH03_JH05_data_phyloseq_flg_3_rare_bulk) > 0, JH03_JH05_data_phyloseq_flg_3_rare_bulk) 
+#Rhizosphere habitat
+JH03_JH05_data_phyloseq_flg_3_rare_rhizosphere_2 <- prune_taxa(taxa_sums(JH03_JH05_data_phyloseq_flg_3_rare_rhizosphere) > 0, JH03_JH05_data_phyloseq_flg_3_rare_rhizosphere) 
+
+
+#constrained ordination for bulk soil constrained to microhabitat
+JH03_JH05_data_phyloseq_flg_3_rare_bulk_2.CAP_bray <- ordinate(JH03_JH05_data_phyloseq_flg_3_rare_bulk_2, "CAP", "bray", ~ Soil * Treatment)
+#now let's assign shapes to the Genotype
+p=plot_ordination(JH03_JH05_data_phyloseq_flg_3_rare_bulk_2, JH03_JH05_data_phyloseq_flg_3_rare_bulk_2.CAP_bray, color = "Treatment", shape="Soil")
+p = p + geom_point(size = 5, alpha = 0.75)
+p + ggtitle("CAP 16S data, Bray distance, Bulk soil")
+#asses the significance of the axes
+anova.cca(JH03_JH05_data_phyloseq_flg_3_rare_bulk_2.CAP_bray, permutations = 5000, first = FALSE)
+
+
+#constrained ordination for rhizosphere soil constrained to microhabitat
+JH03_JH05_data_phyloseq_flg_3_rare_rhizosphere_2.CAP_bray <- ordinate(JH03_JH05_data_phyloseq_flg_3_rare_rhizosphere_2, "CAP", "bray", ~ Soil * Treatment)
+#now let's assign shapes to the Genotype
+p=plot_ordination(JH03_JH05_data_phyloseq_flg_3_rare_rhizosphere_2, JH03_JH05_data_phyloseq_flg_3_rare_rhizosphere_2.CAP_bray, color = "Treatment", shape="Soil")
+p = p + geom_point(size = 5, alpha = 0.75)
+p + ggtitle("CAP 16S data, Bray distance, Rhizosphere soil")
+#asses the significance of the axes
+anova.cca(JH03_JH05_data_phyloseq_flg_3_rare_rhizosphere_2.CAP_bray, permutations = 5000, first = FALSE)
+#there seems to be a shift in composition but it depends on soil type.
+#put both constrained ordinations as third result slide
+
+
+
+#############################################################
+#DESeq analysis split by microhabitat
+############################################################
+
+#####Bulk soil#####
+#extract count data 
+Bulk_counts_rare <- otu_table(JH03_JH05_data_phyloseq_flg_3_rare_bulk_2)
+BulkCountData = as.data.frame(Bulk_counts_rare)
+colnames(Bulk_counts_rare)
+
+#the design file containing sample information
+BulkColData = design[colnames(Bulk_counts_rare), ]
+rownames(BulkColData)
+
+#construct a DESeq dataset combining count data and sample information
+Bulk_cds <- DESeqDataSetFromMatrix(countData = BulkCountData, colData = BulkColData , design = ~ Description)
+
+#execute the differential count analysis with the function DESeq 
+Bulk_cds_test <- DESeq(Bulk_cds, fitType="local", betaPrior = FALSE) 
+
+#define the OTUs significantly enriched in the rhizosphere samples
+#Mock-agro
+BulkQ_Mock_Flg22Agro <- results(Bulk_cds_test, contrast = c("Description",  "BulkMockQ", "BulkFlg22AgroQ"))
+BulkT_Mock_Flg22Agro <- results(Bulk_cds_test, contrast = c("Description",  "BulkMockT", "BulkFlg22AgroT"))
+
+#Mock-pseudomonas
+BulkQ_Mock_Flg22Psy <- results(Bulk_cds_test, contrast = c("Description",  "BulkMockQ", "BulkFlg22PsyQ"))
+BulkT_Mock_Flg22Psy <- results(Bulk_cds_test, contrast = c("Description",  "BulkMockT", "BulkFlg22PsyT"))
+
+
+#inspect a result file
+#what is this for?
+BulkQ_Mock_Flg22Agro 
+BulkT_Mock_Flg22Agro
+BulkQ_Mock_Flg22Psy
+BulkT_Mock_Flg22Psy
+mcols(BulkQ_Mock_Flg22Agro, use.names=TRUE)
+
+#extract the significant ones
+#Mock-agro
+# 3 results
+BulkQ_Mock_Flg22Agro_FDR_005 <- BulkQ_Mock_Flg22Agro[(rownames(BulkQ_Mock_Flg22Agro)[which(BulkQ_Mock_Flg22Agro$padj <0.05)]), ]
+# 0 results
+BulkT_Mock_Flg22Agro_FDR_005 <- BulkT_Mock_Flg22Agro[(rownames(BulkT_Mock_Flg22Agro)[which(BulkT_Mock_Flg22Agro$padj <0.05)]), ]
+#Mock-pseudomonas
+# 1 result
+BulkQ_Mock_Flg22Psy_FDR_005 <- BulkQ_Mock_Flg22Psy[(rownames(BulkQ_Mock_Flg22Psy)[which(BulkQ_Mock_Flg22Psy$padj <0.05)]), ]
+# 47 results, 36 + 11
+BulkT_Mock_Flg22Psy_FDR_005 <- BulkT_Mock_Flg22Psy[(rownames(BulkT_Mock_Flg22Psy)[which(BulkT_Mock_Flg22Psy$padj <0.05)]), ]
+
+#Tayport soil, Psy application
+#what is enriched in Mock + extract taxonomy information
+BulkT_mock_enriched_Psy <- BulkT_Mock_Flg22Psy_FDR_005[(rownames(BulkT_Mock_Flg22Psy_FDR_005)[which(BulkT_Mock_Flg22Psy_FDR_005$log2FoldChange > 0)]), ]
+dat_tax_noPlants[rownames(BulkT_mock_enriched_Psy), ]
+# 36 results
+
+#what is enriched in Flg22Psy + extract taxonomy information
+BulkT_Flg22Psy_enriched <-  BulkT_Mock_Flg22Psy_FDR_005[(rownames(BulkT_Mock_Flg22Psy_FDR_005)[which(BulkT_Mock_Flg22Psy_FDR_005$log2FoldChange < 0)]), ]
+dat_tax_noPlants[rownames(BulkT_Flg22Psy_enriched), ]
+# 11 results
+
+
+#Tayport soil, Agro application
+#what is enriched in Mock + extract taxonomy information
+BulkT_mock_enriched_Agro <- BulkT_Mock_Flg22Agro_FDR_005[(rownames(BulkT_Mock_Flg22Agro_FDR_005)[which(BulkT_Mock_Flg22Agro_FDR_005$log2FoldChange > 0)]), ]
+dat_tax_noPlants[rownames(BulkT_mock_enriched_Agro), ]
+# 0 results
+
+#what is enriched in Flg22Agro + extract taxonomy information
+BulkT_Flg22Agro_enriched <-  BulkT_Mock_Flg22Agro_FDR_005[(rownames(BulkT_Mock_Flg22Agro_FDR_005)[which(BulkT_Mock_Flg22Agro_FDR_005$log2FoldChange < 0)]), ]
+dat_tax_noPlants[rownames(BulkT_Flg22Agro_enriched), ]
+# 0 results
+
+#Quarryfield soil, Psy application
+#what is enriched in Mock + extract taxonomy information
+BulkQ_mock_enriched_Psy <- BulkQ_Mock_Flg22Psy_FDR_005[(rownames(BulkQ_Mock_Flg22Psy_FDR_005)[which(BulkQ_Mock_Flg22Psy_FDR_005$log2FoldChange > 0)]), ]
+dat_tax_noPlants[rownames(BulkQ_mock_enriched_Psy), ]
+# 1 result
+
+#what is enriched in Flg22Psy + extract taxonomy information
+BulkQ_Flg22Psy_enriched <-  BulkQ_Mock_Flg22Psy_FDR_005[(rownames(BulkQ_Mock_Flg22Psy_FDR_005)[which(BulkQ_Mock_Flg22Psy_FDR_005$log2FoldChange < 0)]), ]
+dat_tax_noPlants[rownames(BulkQ_Flg22Psy_enriched), ]
+# 0 results
+
+
+#Quarryfield soil, Agro application
+#what is enriched in Mock + extract taxonomy information
+BulkQ_mock_enriched_Agro <- BulkQ_Mock_Flg22Agro_FDR_005[(rownames(BulkQ_Mock_Flg22Agro_FDR_005)[which(BulkQ_Mock_Flg22Agro_FDR_005$log2FoldChange > 0)]), ]
+dat_tax_noPlants[rownames(BulkQ_mock_enriched_Agro), ]
+# 1 result
+
+#what is enriched in Flg22Agro + extract taxonomy information
+BulkQ_Flg22Agro_enriched <-  BulkQ_Mock_Flg22Agro_FDR_005[(rownames(BulkQ_Mock_Flg22Agro_FDR_005)[which(BulkQ_Mock_Flg22Agro_FDR_005$log2FoldChange < 0)]), ]
+dat_tax_noPlants[rownames(BulkQ_Flg22Agro_enriched), ]
+# 2 results
+
+
+#####Rhizosphere#####
+#extract count data 
+Rhizo_counts_rare <- otu_table(JH03_JH05_data_phyloseq_flg_3_rare_rhizosphere_2)
+RhizosphereCountData = as.data.frame(Rhizo_counts_rare)
+colnames(Rhizo_counts_rare)
+
+#the design file containing sample information
+RhizosphereColData = design[colnames(Rhizo_counts_rare), ]
+rownames(RhizosphereColData)
+
+#construct a DESeq dataset combining count data and sample information
+Rhizo_cds <- DESeqDataSetFromMatrix(countData = RhizosphereCountData, colData = RhizosphereColData , design = ~ Description)
+
+#execute the differential count analysis with the function DESeq 
+Rhizo_cds_test <- DESeq(Rhizo_cds, fitType="local", betaPrior = FALSE) 
+
+
+#define the OTUs significantly enriched in the rhizosphere samples
+#Mock-agro
+RhizoQ_Mock_Flg22Agro <- results(Rhizo_cds_test, contrast = c("Description",  "RhizosphereMockQ", "RhizosphereFlg22AgroQ"))
+RhizoT_Mock_Flg22Agro <- results(Rhizo_cds_test, contrast = c("Description",  "RhizosphereMockT", "RhizosphereFlg22AgroT"))
+#Mock-pseudomonas
+RhizoQ_Mock_Flg22Psy <- results(Rhizo_cds_test, contrast = c("Description",  "RhizosphereMockQ", "RhizosphereFlg22PsyQ"))
+RhizoT_Mock_Flg22Psy <- results(Rhizo_cds_test, contrast = c("Description",  "RhizosphereMockT", "RhizosphereFlg22PsyT"))
+
+#extract the significant ones
+#Mock-agro
+# 0 results
+RhizoQ_Mock_Flg22Agro_FDR_005 <- RhizoQ_Mock_Flg22Agro[(rownames(RhizoQ_Mock_Flg22Agro)[which(RhizoQ_Mock_Flg22Agro$padj <0.05)]), ]
+# 6 results
+RhizoT_Mock_Flg22Agro_FDR_005 <- RhizoT_Mock_Flg22Agro[(rownames(RhizoT_Mock_Flg22Agro)[which(RhizoT_Mock_Flg22Agro$padj <0.05)]), ]
+#Mock-pseudomonas
+# 0 results
+RhizoQ_Mock_Flg22Psy_FDR_005 <- RhizoQ_Mock_Flg22Psy[(rownames(RhizoQ_Mock_Flg22Psy)[which(RhizoQ_Mock_Flg22Psy$padj <0.05)]), ]
+# 2 results
+RhizoT_Mock_Flg22Psy_FDR_005 <- RhizoT_Mock_Flg22Psy[(rownames(RhizoT_Mock_Flg22Psy)[which(RhizoT_Mock_Flg22Psy$padj <0.05)]), ]
+
+#Tayport Soil, Psy Application
+#what is enriched in Mock + extract taxonomy information
+RhizoT_mock_enriched_Psy <- RhizoT_Mock_Flg22Psy_FDR_005[(rownames(RhizoT_Mock_Flg22Psy_FDR_005)[which(RhizoT_Mock_Flg22Psy_FDR_005$log2FoldChange > 0)]), ]
+dat_tax_noPlants[rownames(RhizoT_mock_enriched_Psy), ]
+# 2 results
+
+#what is enriched in Flg22Psy + extract taxonomy information
+RhizoT_Flg22Psy_enriched <- RhizoT_Mock_Flg22Psy_FDR_005[(rownames(RhizoT_Mock_Flg22Psy_FDR_005)[which(RhizoT_Mock_Flg22Psy_FDR_005$log2FoldChange < 0)]), ]
+dat_tax_noPlants[rownames(RhizoT_Flg22Psy_enriched), ]
+# 0 results
+
+#Tayport soil, Agro application
+#what is enriched in Mock + extract taxonomy information
+RhizoT_mock_enriched_Agro <- RhizoT_Mock_Flg22Agro_FDR_005[(rownames(RhizoT_Mock_Flg22Agro_FDR_005)[which(RhizoT_Mock_Flg22Agro_FDR_005$log2FoldChange > 0)]), ]
+dat_tax_noPlants[rownames(RhizoT_mock_enriched_Agro), ]
+# 0 results
+
+#what is enriched in Flg22Agro + extract taxonomy information
+RhizoT_Flg22Agro_enriched <-  RhizoT_Mock_Flg22Agro_FDR_005[(rownames(RhizoT_Mock_Flg22Agro_FDR_005)[which(RhizoT_Mock_Flg22Agro_FDR_005$log2FoldChange < 0)]), ]
+dat_tax_noPlants[rownames(RhizoT_Flg22Agro_enriched), ]
+# 6 results
+
+# Quarryfield samples show no significant enrichment
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#############################################################
+#DESeq analysis split by soil
+#############################################################
+
+#Split rarefied phyloseq object by Soil. In the previous DEseq analysis it was not taken into account that the soils show a strong effect.
+#As DEseq 'borrows' information from other OTUs, splitting by microhabitat might have circumvented the effect of the individual soils.
+#The same analysis as before is repeated but split by soil.
+#Tayport Soil
+JH03_JH05_data_phyloseq_flg_3_rare_tayport <- subset_samples(JH03_JH05_data_phyloseq_flg_3_rare, Soil=="Tayport")
+#Quarryfield Soil
+JH03_JH05_data_phyloseq_flg_3_rare_quarryfield <- subset_samples(JH03_JH05_data_phyloseq_flg_3_rare, Soil=="Quarryfield")
+
+#Tayport Soil
+JH03_JH05_data_phyloseq_flg_3_rare_tayport_2 <- prune_taxa(taxa_sums(JH03_JH05_data_phyloseq_flg_3_rare_tayport) > 0, JH03_JH05_data_phyloseq_flg_3_rare_tayport) 
+#Quarryfield soil
+JH03_JH05_data_phyloseq_flg_3_rare_quarryfield_2 <- prune_taxa(taxa_sums(JH03_JH05_data_phyloseq_flg_3_rare_quarryfield) > 0, JH03_JH05_data_phyloseq_flg_3_rare_quarryfield) 
+
+
+#####Tayport#####
+#extract count data 
+Tayport_counts_rare <- otu_table(JH03_JH05_data_phyloseq_flg_3_rare_tayport_2)
+TayportCountData = as.data.frame(Tayport_counts_rare)
+colnames(Tayport_counts_rare)
+
+#the design file containing sample information
+TayportColData = design[colnames(Tayport_counts_rare), ]
+rownames(TayportColData)
+
+#construct a DESeq dataset combining count data and sample information
+Tayport_cds <- DESeqDataSetFromMatrix(countData = TayportCountData, colData = TayportColData, design = ~ Description)
+
+#execute the differential count analysis with the function DESeq 
+Tayport_cds_test <- DESeq(Tayport_cds, fitType="local", betaPrior = FALSE) 
+
+#define the OTUs significantly enriched in the rhizosphere samples
+#Bulk
+Tayport_Bulk_Mock_Psy <- results(Tayport_cds_test,contrast = c("Description", "BulkMockT", "BulkFlg22PsyT"))
+Tayport_Bulk_Mock_Agro <- results(Tayport_cds_test,contrast = c("Description", "BulkMockT", "BulkFlg22AgroT"))
+
+
+#Rhizosphere
+Tayport_Rhizosphere_Mock_Psy <- results(Tayport_cds_test,contrast = c("Description", "RhizosphereMockT", "RhizosphereFlg22PsyT"))
+Tayport_Rhizosphere_Mock_Agro <- results(Tayport_cds_test,contrast = c("Description", "RhizosphereMockT", "RhizosphereFlg22AgroT"))
+
+
+#inspect a result file
+#what is this for?
+Tayport_Bulk_Mock_Psy 
+Tayport_Bulk_Mock_Agro
+Tayport_Rhizosphere_Mock_Psy 
+Tayport_Rhizosphere_Mock_Agro
+mcols(Tayport_Bulk_Mock_Psy, use.names=TRUE)
+
+#extract the significant ones
+#Tayport Bulk soil. Comparison between mock treatment and flg treatments
+Tayport_Bulk_Mock_Psy_FDR_005 <- Tayport_Bulk_Mock_Psy[(rownames(Tayport_Bulk_Mock_Psy)[which(Tayport_Bulk_Mock_Psy$padj <0.1)]), ]
+#81 results (77)
+Tayport_Bulk_Mock_Agro_FDR_005 <- Tayport_Bulk_Mock_Agro[(rownames(Tayport_Bulk_Mock_Agro)[which(Tayport_Bulk_Mock_Agro$padj <0.1)]), ]
+#2 results (0)
+
+#Tayport rhizosphere soil. Comparison between mock treatment and flg treatments
+Tayport_Rhizosphere_Mock_Psy_FDR_005 <- Tayport_Rhizosphere_Mock_Psy[(rownames(Tayport_Rhizosphere_Mock_Psy)[which(Tayport_Rhizosphere_Mock_Psy$padj <0.2)]), ]
+#2 results (1?)
+Tayport_Rhizosphere_Mock_Agro_FDR_005 <- Tayport_Rhizosphere_Mock_Agro[(rownames(Tayport_Rhizosphere_Mock_Agro)[which(Tayport_Rhizosphere_Mock_Agro$padj <0.1)]), ]
+#0 results
+
+#These results simply state a differential regulation, not an up- or down-regulation.
+#For up/down regulation see code below
+
+
+#Tayport soil, Bulk, Psy application
+#what is enriched in Mock + extract taxonomy information
+Tayport_Bulk_mock_enriched_Psy <- Tayport_Bulk_Mock_Psy_FDR_005[(rownames(Tayport_Bulk_Mock_Psy_FDR_005)[which(Tayport_Bulk_Mock_Psy_FDR_005$log2FoldChange > 0)]), ]
+dat_tax_noPlants[rownames(Tayport_Bulk_mock_enriched_Psy), ]
+#66 results (61)
+
+#What is enriched in Flg22Psy + extract taxonomy information
+Tayport_Bulk_Flg22Psy_enriched <-  Tayport_Bulk_Mock_Psy_FDR_005[(rownames(Tayport_Bulk_Mock_Psy_FDR_005)[which(Tayport_Bulk_Mock_Psy_FDR_005$log2FoldChange < 0)]), ]
+dat_tax_noPlants[rownames(Tayport_Bulk_Flg22Psy_enriched), ]
+#15 results (16)
+
+#Tayport soil, Bulk, Agro application
+#what is enriched in Mock + extract taxonomy information
+Tayport_Bulk_mock_enriched_Agro <- Tayport_Bulk_Mock_Agro_FDR_005[(rownames(Tayport_Bulk_Mock_Agro_FDR_005)[which(Tayport_Bulk_Mock_Agro_FDR_005$log2FoldChange > 0)]), ]
+dat_tax_noPlants[rownames(Tayport_Bulk_mock_enriched_Agro), ]
+#2 results (0)
+
+#What is enriched in Flg22Agro + extract taxonomy information
+Tayport_Bulk_Flg22Agro_enriched <-  Tayport_Bulk_Mock_Agro_FDR_005[(rownames(Tayport_Bulk_Mock_Agro_FDR_005)[which(Tayport_Bulk_Mock_Agro_FDR_005$log2FoldChange < 0)]), ]
+dat_tax_noPlants[rownames(Tayport_Bulk_Flg22Agro_enriched), ]
+#0 results
+
+
+#Tayport soil, Rhizosphere, Psy application
+#what is enriched in Mock + extract taxonomy information
+Tayport_Rhizosphere_mock_enriched_Psy <- Tayport_Rhizosphere_Mock_Psy_FDR_005[(rownames(Tayport_Rhizosphere_Mock_Psy_FDR_005)[which(Tayport_Rhizosphere_Mock_Psy_FDR_005$log2FoldChange > 0)]), ]
+dat_tax_noPlants[rownames(Tayport_Rhizosphere_mock_enriched_Psy), ]
+#1 result (Previously 2)
+
+#what is enriched in Flg22Psy + extract taxonomy information
+Tayport_Rhizosphere_Flg22Psy_enriched <-  Tayport_Rhizosphere_Mock_Psy_FDR_005[(rownames(Tayport_Rhizosphere_Mock_Psy_FDR_005)[which(Tayport_Rhizosphere_Mock_Psy_FDR_005$log2FoldChange < 0)]), ]
+dat_tax_noPlants[rownames(Tayport_Rhizosphere_Flg22Psy_enriched), ]
+#0 results
+
+#Tayport soil, Rhizosphere, Agro application
+#what is enriched in Mock + extract taxonomy information
+Tayport_Rhizosphere_mock_enriched_Agro <- Tayport_Rhizosphere_Mock_Agro_FDR_005[(rownames(Tayport_Rhizosphere_Mock_Agro_FDR_005)[which(Tayport_Rhizosphere_Mock_Agro_FDR_005$log2FoldChange > 0)]), ]
+dat_tax_noPlants[rownames(Tayport_Rhizosphere_mock_enriched_Agro), ]
+#0 results
+
+#What is enriched in Flg22Psy + extract taxonomy information
+Tayport_Rhizosphere_Flg22Agro_enriched <-  Tayport_Rhizosphere_Mock_Agro_FDR_005[(rownames(Tayport_Rhizosphere_Mock_Agro_FDR_005)[which(Tayport_Rhizosphere_Mock_Agro_FDR_005$log2FoldChange < 0)]), ]
+dat_tax_noPlants[rownames(Tayport_Rhizosphere_Flg22Agro_enriched), ]
+#0 results
+
+
+#####Quarryfield#####
+#extract count data 
+Quarryfield_counts_rare <- otu_table(JH03_JH05_data_phyloseq_flg_3_rare_quarryfield_2)
+QuarryfieldCountData = as.data.frame(Quarryfield_counts_rare)
+colnames(Quarryfield_counts_rare)
+
+#the design file containing sample information
+QuarryfieldColData = design[colnames(Quarryfield_counts_rare), ]
+rownames(QuarryfieldColData)
+
+#construct a DESeq dataset combining count data and sample information
+Quarryfield_cds <- DESeqDataSetFromMatrix(countData = QuarryfieldCountData, colData = QuarryfieldColData, design = ~ Description)
+
+#execute the differential count analysis with the function DESeq 
+Quarryfield_cds_test <- DESeq(Quarryfield_cds, fitType="local", betaPrior = FALSE) 
+
+#define the OTUs significantly enriched in the rhizosphere samples
+#Bulk
+Quarryfield_Bulk_Mock_Psy <- results(Quarryfield_cds_test, contrast = c("Description", "BulkMockQ", "BulkFlg22PsyQ"))
+Quarryfield_Bulk_Mock_Agro <- results(Quarryfield_cds_test, contrast = c("Description", "BulkMockQ", "BulkFlg22AgroQ"))
+
+#Rhizosphere
+Quarryfield_Rhizosphere_Mock_Psy <- results(Quarryfield_cds_test,contrast = c("Description", "RhizosphereMockQ", "RhizosphereFlg22PsyQ"))
+Quarryfield_Rhizosphere_Mock_Agro <- results(Quarryfield_cds_test,contrast = c("Description", "RhizosphereMockQ", "RhizosphereFlg22AgroQ"))
+
+
+#inspect a result file
+#what is this for?
+Quarryfield_Bulk_Mock_Psy 
+Quarryfield_Bulk_Mock_Agro
+Quarryfield_Rhizosphere_Mock_Psy 
+Quarryfield_Rhizosphere_Mock_Agro
+mcols(Quarryfield_Bulk_Mock_Psy, use.names=TRUE)
+
+#extract the significant ones
+#Quarryfield Bulk soil. Comparison between mock treatment and flg treatments
+Quarryfield_Bulk_Mock_Psy_FDR_005 <- Quarryfield_Bulk_Mock_Psy[(rownames(Quarryfield_Bulk_Mock_Psy)[which(Quarryfield_Bulk_Mock_Psy$padj <0.05)]), ]
+#0 results
+Quarryfield_Bulk_Mock_Agro_FDR_005 <- Quarryfield_Bulk_Mock_Agro[(rownames(Quarryfield_Bulk_Mock_Agro)[which(Quarryfield_Bulk_Mock_Agro$padj <0.05)]), ]
+#10 results
+
+#Quarryfield rhizosphere soil. Comparison between mock treatment and flg treatments
+Quarryfield_Rhizosphere_Mock_Psy_FDR_005 <- Quarryfield_Rhizosphere_Mock_Psy[(rownames(Quarryfield_Rhizosphere_Mock_Psy)[which(Quarryfield_Rhizosphere_Mock_Psy$padj <0.05)]), ]
+#0 results
+Quarryfield_Rhizosphere_Mock_Agro_FDR_005 <- Quarryfield_Rhizosphere_Mock_Agro[(rownames(Quarryfield_Rhizosphere_Mock_Agro)[which(Quarryfield_Rhizosphere_Mock_Agro$padj <0.05)]), ]
+#0 results
+
+
+#Quarryfield soil, Bulk, Psy application
+#what is enriched in Mock + extract taxonomy information
+Quarryfield_Bulk_mock_enriched_Psy <- Quarryfield_Bulk_Mock_Psy_FDR_005[(rownames(Quarryfield_Bulk_Mock_Psy_FDR_005)[which(Quarryfield_Bulk_Mock_Psy_FDR_005$log2FoldChange > 0)]), ]
+dat_tax_noPlants[rownames(Quarryfield_Bulk_mock_enriched_Psy), ]
+#0 results
+
+#what is enriched in Flg22Psy + extract taxonomy information
+Quarryfield_Bulk_Flg22Psy_enriched <-  Quarryfield_Bulk_Mock_Psy_FDR_005[(rownames(Quarryfield_Bulk_Mock_Psy_FDR_005)[which(Quarryfield_Bulk_Mock_Psy_FDR_005$log2FoldChange < 0)]), ]
+dat_tax_noPlants[rownames(Quarryfield_Bulk_Flg22Psy_enriched), ]
+#0 results
+
+
+#Quarryfield soil, Bulk, Agro application
+#what is enriched in Mock + extract taxonomy information
+Quarryfield_Bulk_mock_enriched_Agro <- Quarryfield_Bulk_Mock_Agro_FDR_005[(rownames(Quarryfield_Bulk_Mock_Agro_FDR_005)[which(Quarryfield_Bulk_Mock_Agro_FDR_005$log2FoldChange > 0)]), ]
+dat_tax_noPlants[rownames(Quarryfield_Bulk_mock_enriched_Agro), ]
+#6 results (Previously 7)
+
+#what is enriched in Flg22Psy + extract taxonomy information
+Quarryfield_Bulk_Flg22Agro_enriched <-  Quarryfield_Bulk_Mock_Agro_FDR_005[(rownames(Quarryfield_Bulk_Mock_Agro_FDR_005)[which(Quarryfield_Bulk_Mock_Agro_FDR_005$log2FoldChange < 0)]), ]
+dat_tax_noPlants[rownames(Quarryfield_Bulk_Flg22Agro_enriched), ]
+#4 results (Previously 3)
+
+
+#Quarryfield soil, Rhizosphere, Psy application
+#what is enriched in Mock + extract taxonomy information
+Quarryfield_Rhizosphere_mock_enriched_Psy <- Quarryfield_Rhizosphere_Mock_Psy_FDR_005[(rownames(Quarryfield_Rhizosphere_Mock_Psy_FDR_005)[which(Quarryfield_Rhizosphere_Mock_Psy_FDR_005$log2FoldChange > 0)]), ]
+dat_tax_noPlants[rownames(Quarryfield_Rhizosphere_mock_enriched_Psy), ]
+#0 results
+
+#what is enriched in Flg22Psy + extract taxonomy information
+Quarryfield_Rhizosphere_Flg22Psy_enriched <-  Quarryfield_Rhizosphere_Mock_Psy_FDR_005[(rownames(Quarryfield_Rhizosphere_Mock_Psy_FDR_005)[which(Quarryfield_Rhizosphere_Mock_Psy_FDR_005$log2FoldChange < 0)]), ]
+dat_tax_noPlants[rownames(Quarryfield_Rhizosphere_Flg22Psy_enriched), ]
+#0 results
+
+#Quarryfield soil, Rhizosphere, Agro application
+#what is enriched in Mock + extract taxonomy information
+Quarryfield_Rhizosphere_mock_enriched_Agro <- Quarryfield_Rhizosphere_Mock_Agro_FDR_005[(rownames(Quarryfield_Rhizosphere_Mock_Agro_FDR_005)[which(Quarryfield_Rhizosphere_Mock_Agro_FDR_005$log2FoldChange > 0)]), ]
+dat_tax_noPlants[rownames(Quarryfield_Rhizosphere_mock_enriched_Agro), ]
+#0 results
+
+#what is enriched in Flg22Psy + extract taxonomy information
+Quarryfield_Rhizosphere_Flg22Agro_enriched <-  Quarryfield_Rhizosphere_Mock_Agro_FDR_005[(rownames(Quarryfield_Rhizosphere_Mock_Agro_FDR_005)[which(Quarryfield_Rhizosphere_Mock_Agro_FDR_005$log2FoldChange < 0)]), ]
+dat_tax_noPlants[rownames(Quarryfield_Rhizosphere_Flg22Agro_enriched), ]
+#0 results
+
+
+
+
+
+
+
+
+
+
+
+
+
+#############################################################
+#DESeq analysis split by soil corrected for microhabitat
+#############################################################
+
+#Split rarefied phyloseq object by Soil. In the previous DEseq analysis it was not taken into account that the soils show a strong effect.
+#As DEseq 'borrows' information from other OTUs, splitting by microhabitat might have circumvented the effect of the individual soils.
+#The same analysis as before is repeated but split by soil.
+#Tayport Soil
+JH03_JH05_data_phyloseq_flg_3_rare_tayport <- subset_samples(JH03_JH05_data_phyloseq_flg_3_rare, Soil=="Tayport")
+#Quarryfield Soil
+JH03_JH05_data_phyloseq_flg_3_rare_quarryfield <- subset_samples(JH03_JH05_data_phyloseq_flg_3_rare, Soil=="Quarryfield")
+
+#Tayport Soil
+JH03_JH05_data_phyloseq_flg_3_rare_tayport_2 <- prune_taxa(taxa_sums(JH03_JH05_data_phyloseq_flg_3_rare_tayport) > 0, JH03_JH05_data_phyloseq_flg_3_rare_tayport) 
+#Quarryfield soil
+JH03_JH05_data_phyloseq_flg_3_rare_quarryfield_2 <- prune_taxa(taxa_sums(JH03_JH05_data_phyloseq_flg_3_rare_quarryfield) > 0, JH03_JH05_data_phyloseq_flg_3_rare_quarryfield) 
+
+
+#####Tayport#####
+#extract count data 
+Tayport_counts_rare <- otu_table(JH03_JH05_data_phyloseq_flg_3_rare_tayport_2)
+TayportCountData = as.data.frame(Tayport_counts_rare)
+#colnames(Tayport_counts_rare)
+
+#the design file containing sample information
+TayportColData = design[colnames(Tayport_counts_rare), ]
+#rownames(TayportColData)
+
+#construct a DESeq dataset combining count data and sample information
+Tayport_cds <- DESeqDataSetFromMatrix(countData = TayportCountData, colData = TayportColData, design = ~ Description)
+
+#execute the differential count analysis with the function DESeq 
+Tayport_cds_test <- DESeq(Tayport_cds, fitType="local", betaPrior = FALSE) 
+
+#Compare OTUs between bulk and rhizosphere samples
+Tayport_BR_Mock <- results(Tayport_cds_test,contrast = c("Description", "BulkMockT", "RhizosphereMockT"))
+Tayport_BR_Psy <- results(Tayport_cds_test,contrast = c("Description", "BulkFlg22PsyT", "RhizosphereFlg22PsyT"))
+Tayport_BR_Agro <- results(Tayport_cds_test,contrast = c("Description", "BulkFlg22AgroT", "RhizosphereFlg22AgroT"))
+
+#inspect a result file
+#Tayport_BR_Mock
+#Tayport_BR_Psy 
+#Tayport_BR_Agro
+#mcols(Tayport_Bulk_Mock_Psy, use.names=TRUE)
+
+#filter previous list toextract significantly enriched OTUs at FDR < 0.05
+#Tayport Bulk soil. Comparison between mock treatment and flg treatments
+Tayport_BR_Mock_FDR_005 <- Tayport_BR_Mock[(rownames(Tayport_BR_Mock)[which(Tayport_BR_Mock$padj <0.05)]), ]
+#132
+Tayport_BR_Psy_FDR_005 <- Tayport_BR_Psy[(rownames(Tayport_BR_Psy)[which(Tayport_BR_Psy$padj <0.05)]), ]
+#200
+Tayport_BR_Agro_FDR_005 <- Tayport_BR_Agro[(rownames(Tayport_BR_Agro)[which(Tayport_BR_Agro$padj <0.05)]), ]
+#101
+#These results simply state a differential regulation, not an up- or down-regulation.
+#For up/down regulation see code below
+
+
+#Tayport soil, Bulk, Psy application
+#what is enriched in Mock + extract taxonomy information
+Tayport_BR_Bulk_enriched_Mock <- Tayport_BR_Mock_FDR_005[(rownames(Tayport_BR_Mock_FDR_005)[which(Tayport_BR_Mock_FDR_005$log2FoldChange > 0)]), ]
+dat_tax_noPlants[rownames(Tayport_BR_Bulk_enriched_Mock), ]
+length(rownames((Tayport_BR_Bulk_enriched_Mock)))
+
+#What is enriched in Flg22Psy + extract taxonomy information
+Tayport_BR_Rhizo_enriched_Mock <- Tayport_BR_Mock_FDR_005[(rownames(Tayport_BR_Mock_FDR_005)[which(Tayport_BR_Mock_FDR_005$log2FoldChange < 0)]), ]
+dat_tax_noPlants[rownames(Tayport_BR_Rhizo_enriched_Mock), ]
+length(rownames((Tayport_BR_Rhizo_enriched_Mock)))
+count(JH03_JH05_taxa_ordered[rownames(Tayport_BR_Rhizo_enriched_Mock), ], "Family")
+
+
+
+#what is enriched in Mock + extract taxonomy information
+Tayport_BR_Bulk_enriched_Psy <- Tayport_BR_Psy_FDR_005[(rownames(Tayport_BR_Psy_FDR_005)[which(Tayport_BR_Psy_FDR_005$log2FoldChange > 0)]), ]
+dat_tax_noPlants[rownames(Tayport_BR_Bulk_enriched_Psy), ]
+length(rownames((Tayport_BR_Bulk_enriched_Psy)))
+
+#What is enriched in Flg22Psy + extract taxonomy information
+Tayport_BR_Rhizo_enriched_Psy <- Tayport_BR_Psy_FDR_005[(rownames(Tayport_BR_Psy_FDR_005)[which(Tayport_BR_Psy_FDR_005$log2FoldChange < 0)]), ]
+dat_tax_noPlants[rownames(Tayport_BR_Rhizo_enriched_Psy), ]
+length(rownames((Tayport_BR_Rhizo_enriched_Psy)))
+count(JH03_JH05_taxa_ordered[rownames(Tayport_BR_Rhizo_enriched_Psy), ], "Family")
+
+
+#what is enriched in Mock + extract taxonomy information
+Tayport_BR_Bulk_enriched_Agro <- Tayport_BR_Agro_FDR_005[(rownames(Tayport_BR_Agro_FDR_005)[which(Tayport_BR_Agro_FDR_005$log2FoldChange > 0)]), ]
+dat_tax_noPlants[rownames(Tayport_BR_Bulk_enriched_Agro), ]
+length(rownames((Tayport_BR_Bulk_enriched_Agro)))
+
+#What is enriched in Flg22Psy + extract taxonomy information
+Tayport_BR_Rhizo_enriched_Agro <- Tayport_BR_Agro_FDR_005[(rownames(Tayport_BR_Agro_FDR_005)[which(Tayport_BR_Agro_FDR_005$log2FoldChange < 0)]), ]
+dat_tax_noPlants[rownames(Tayport_BR_Rhizo_enriched_Agro), ]
+length(rownames((Tayport_BR_Rhizo_enriched_Agro)))
+count(JH03_JH05_taxa_ordered[rownames(Tayport_BR_Rhizo_enriched_Agro), ], "Family")
+
+
+#differences
+diff_Psy_Mock_RhizoT <- setdiff(rownames(Tayport_BR_Rhizo_enriched_Psy), rownames(Tayport_BR_Rhizo_enriched_Mock))
+#taxonomy
+count(JH03_JH05_taxa_ordered[diff_Psy_Mock_RhizoT, ], "Family")
+
+diff_Agro_Mock_RhizoT <- setdiff(rownames(Tayport_BR_Rhizo_enriched_Agro), rownames(Tayport_BR_Rhizo_enriched_Mock))
+#taxonomy
+count(JH03_JH05_taxa_ordered[diff_Agro_Mock_RhizoT, ], "Family")
+
+diff_Psy_Agro_RhizoT <- setdiff(rownames(Tayport_BR_Rhizo_enriched_Psy), rownames(Tayport_BR_Rhizo_enriched_Agro))
+#taxonomy
+count(JH03_JH05_taxa_ordered[diff_Psy_Agro_RhizoT, ], "Family")
+
+#visualise with Venn diagram
+#Area 1
+Area1T <- rownames(Tayport_BR_Rhizo_enriched_Agro)
+#Area 2
+Area2T <- rownames(Tayport_BR_Rhizo_enriched_Psy)
+#Area 3
+Area3T <- rownames(Tayport_BR_Rhizo_enriched_Mock)
+#intersection
+#Area 12
+Area12T <- intersect(Area1T, Area2T)
+length(Area12T)
+#Area 23
+Area23T <- intersect(Area2T, Area3T)
+length(Area23T)
+#Area 13
+Area13T <- intersect(Area1T, Area3T)
+length(Area13T)
+#Area 123
+Area123T <- intersect(Area3T, Area12T)
+length(Area123T)
+
+dev.off()
+draw.triple.venn(area1 = length(Area1T), area2 = length(Area2T), area3 = length(Area3T), n12 = length(Area12T), n23 = length(Area23T), n13 = length(Area13T), 
+               n123 = length(Area123T), category = c("Agro", "Psy", "Mock"), lty = "blank", 
+               fill = c("cornflowerblue", "cadetblue3", "cyan2"))
+
+
+#unique families
+uniquefamily_psyT <- count(JH03_JH05_taxa_ordered[setdiff(setdiff(Area2T, Area12T), Area23T), ], "Family")
+sum(uniquefamily_psyT$freq)
+write.table(uniquefamily_psyT, file="uniquefamily_psyT.txt", sep="\t")
+uniquefamily_agroT <- count(JH03_JH05_taxa_ordered[setdiff(setdiff(Area1T, Area12T), Area13T), ], "Family")
+sum(uniquefamily_agroT$freq)
+write.table(uniquefamily_agroT, file="uniquefamily_agroT.txt", sep="\t")
+uniquefamily_mockT <- count(JH03_JH05_taxa_ordered[setdiff(setdiff(Area3T, Area13T), Area23T), ], "Family")
+sum(uniquefamily_mockT$freq)
+write.table(uniquefamily_mockT, file="uniquefamily_mockT.txt", sep="\t")
+
+#Export full taxonomy information for higher resolution
+unique_taxonomy_PsyT <- JH03_JH05_taxa_ordered[setdiff(setdiff(Area2T, Area12T), Area23T), ]
+write.table(unique_taxonomy_PsyT, file="unique_taxonomy_PsyT.txt", sep="\t")
+
+unique_taxonomy_agroT <- JH03_JH05_taxa_ordered[setdiff(setdiff(Area1T, Area12T), Area13T), ]
+write.table(unique_taxonomy_agroT, file="unique_taxonomy_agroT.txt", sep="\t")
+
+unique_taxonomy_mockT <- JH03_JH05_taxa_ordered[setdiff(setdiff(Area2T, Area12T), Area23T), ]
+write.table(unique_taxonomy_mockT, file="unique_taxonomy_mockT.txt", sep="\t")
+
+
+#####Quarryfield#####
+
+#extract count data 
+quarryfield_counts_rare <- otu_table(JH03_JH05_data_phyloseq_flg_3_rare_quarryfield_2)
+quarryfieldCountData = as.data.frame(quarryfield_counts_rare)
+colnames(quarryfield_counts_rare)
+
+#the design file containing sample information
+quarryfieldColData = design[colnames(quarryfield_counts_rare), ]
+rownames(quarryfieldColData)
+
+#Test if colnames of OTU table and rownames of design file match
+colnames(quarryfield_counts_rare) == rownames(quarryfieldColData)
+
+#construct a DESeq dataset combining count data and sample information
+quarryfield_cds <- DESeqDataSetFromMatrix(countData = quarryfieldCountData, colData = quarryfieldColData, design = ~ Description)
+
+#execute the differential count analysis with the function DESeq 
+quarryfield_cds_test <- DESeq(quarryfield_cds, fitType="local", betaPrior = FALSE) 
+
+#Compare OTUs between bulk and rhizosphere samples
+quarryfield_BR_Mock <- results(quarryfield_cds_test,contrast = c("Description", "BulkMockQ", "RhizosphereMockQ"))
+quarryfield_BR_Psy <- results(quarryfield_cds_test,contrast = c("Description", "BulkFlg22PsyQ", "RhizosphereFlg22PsyQ"))
+quarryfield_BR_Agro <- results(quarryfield_cds_test,contrast = c("Description", "BulkFlg22AgroQ", "RhizosphereFlg22AgroQ"))
+
+#inspect a result file
+#quarryfield_BR_Mock
+#quarryfield_BR_Psy 
+#quarryfield_BR_Agro
+#mcols(quarryfield_BR_Psy, use.names=TRUE)
+
+#filter previous list toextract significantly enriched OTUs at FDR < 0.05
+#quarryfield Bulk soil. Comparison between mock treatment and flg treatments
+quarryfield_BR_Mock_FDR_005 <- quarryfield_BR_Mock[(rownames(quarryfield_BR_Mock)[which(quarryfield_BR_Mock$padj <0.05)]), ]
+length(rownames((quarryfield_BR_Mock_FDR_005)))
+quarryfield_BR_Psy_FDR_005 <- quarryfield_BR_Psy[(rownames(quarryfield_BR_Psy)[which(quarryfield_BR_Psy$padj <0.05)]), ]
+length(rownames((quarryfield_BR_Psy_FDR_005)))
+quarryfield_BR_Agro_FDR_005 <- quarryfield_BR_Agro[(rownames(quarryfield_BR_Agro)[which(quarryfield_BR_Agro$padj <0.05)]), ]
+length(rownames((quarryfield_BR_Agro_FDR_005)))
+#These results simply state a differential regulation, not an up- or down-regulation.
+#For up/down regulation see code below
+
+
+#quarryfield soil, Bulk, Psy application
+#what is enriched in Mock + extract taxonomy information
+quarryfield_BR_Bulk_enriched_Mock <- quarryfield_BR_Mock_FDR_005[(rownames(quarryfield_BR_Mock_FDR_005)[which(quarryfield_BR_Mock_FDR_005$log2FoldChange > 0)]), ]
+dat_tax_noPlants[rownames(quarryfield_BR_Bulk_enriched_Mock), ]
+length(rownames((quarryfield_BR_Bulk_enriched_Mock)))
+
+#What is enriched in Flg22Psy + extract taxonomy information
+quarryfield_BR_Rhizo_enriched_Mock <- quarryfield_BR_Mock_FDR_005[(rownames(quarryfield_BR_Mock_FDR_005)[which(quarryfield_BR_Mock_FDR_005$log2FoldChange < 0)]), ]
+dat_tax_noPlants[rownames(quarryfield_BR_Rhizo_enriched_Mock), ]
+length(rownames((quarryfield_BR_Rhizo_enriched_Mock)))
+count(JH03_JH05_taxa_ordered[rownames(quarryfield_BR_Rhizo_enriched_Mock), ], "Family")
+
+
+
+#what is enriched in Mock + extract taxonomy information
+quarryfield_BR_Bulk_enriched_Psy <- quarryfield_BR_Psy_FDR_005[(rownames(quarryfield_BR_Psy_FDR_005)[which(quarryfield_BR_Psy_FDR_005$log2FoldChange > 0)]), ]
+dat_tax_noPlants[rownames(quarryfield_BR_Bulk_enriched_Psy), ]
+length(rownames((quarryfield_BR_Bulk_enriched_Psy)))
+
+#What is enriched in Flg22Psy + extract taxonomy information
+quarryfield_BR_Rhizo_enriched_Psy <- quarryfield_BR_Psy_FDR_005[(rownames(quarryfield_BR_Psy_FDR_005)[which(quarryfield_BR_Psy_FDR_005$log2FoldChange < 0)]), ]
+dat_tax_noPlants[rownames(quarryfield_BR_Rhizo_enriched_Psy), ]
+length(rownames((quarryfield_BR_Rhizo_enriched_Psy)))
+count(JH03_JH05_taxa_ordered[rownames(quarryfield_BR_Rhizo_enriched_Psy), ], "Family")
+
+
+#what is enriched in Mock + extract taxonomy information
+quarryfield_BR_Bulk_enriched_Agro <- quarryfield_BR_Agro_FDR_005[(rownames(quarryfield_BR_Agro_FDR_005)[which(quarryfield_BR_Agro_FDR_005$log2FoldChange > 0)]), ]
+dat_tax_noPlants[rownames(quarryfield_BR_Bulk_enriched_Agro), ]
+length(rownames((quarryfield_BR_Bulk_enriched_Agro)))
+
+#What is enriched in Flg22Psy + extract taxonomy information
+quarryfield_BR_Rhizo_enriched_Agro <- quarryfield_BR_Agro_FDR_005[(rownames(quarryfield_BR_Agro_FDR_005)[which(quarryfield_BR_Agro_FDR_005$log2FoldChange < 0)]), ]
+dat_tax_noPlants[rownames(quarryfield_BR_Rhizo_enriched_Agro), ]
+length(rownames((quarryfield_BR_Rhizo_enriched_Agro)))
+count(JH03_JH05_taxa_ordered[rownames(quarryfield_BR_Rhizo_enriched_Agro), ], "Family")
+
+
+#differences
+diff_Psy_Mock_RhizoQ <- setdiff(rownames(quarryfield_BR_Rhizo_enriched_Psy), rownames(quarryfield_BR_Rhizo_enriched_Mock))
+#taxonomy
+count(JH03_JH05_taxa_ordered[diff_Psy_Mock_RhizoQ, ], "Family")
+
+diff_Agro_Mock_RhizoQ <- setdiff(rownames(quarryfield_BR_Rhizo_enriched_Agro), rownames(quarryfield_BR_Rhizo_enriched_Mock))
+#taxonomy
+count(JH03_JH05_taxa_ordered[diff_Agro_Mock_RhizoQ, ], "Family")
+
+diff_Psy_Agro_RhizoQ <- setdiff(rownames(quarryfield_BR_Rhizo_enriched_Psy), rownames(quarryfield_BR_Rhizo_enriched_Agro))
+#taxonomy
+count(JH03_JH05_taxa_ordered[diff_Psy_Agro_RhizoQ, ], "Family")
+
+#visualise with Venn diagram
+#Area 1
+Area1Q <- rownames(quarryfield_BR_Rhizo_enriched_Agro)
+#Area 2
+Area2Q <- rownames(quarryfield_BR_Rhizo_enriched_Psy)
+#Area 3
+Area3Q <- rownames(quarryfield_BR_Rhizo_enriched_Mock)
+#intersection
+#Area 12
+Area12Q <- intersect(Area1Q, Area2Q)
+length(Area12T)
+#Area 23
+Area23Q <- intersect(Area2Q, Area3Q)
+length(Area23T)
+#Area 13
+Area13Q <- intersect(Area1Q, Area3Q)
+length(Area13T)
+#Area 123
+Area123Q <- intersect(Area3Q, Area12Q)
+length(Area123Q)
+
+dev.off()
+draw.triple.venn(area1 = length(Area1Q), area2 = length(Area2Q), area3 = length(Area3Q), n12 = length(Area12Q), n23 = length(Area23Q), n13 = length(Area13Q), 
+                 n123 = length(Area123Q), category = c("Agro", "Psy", "Mock"), lty = "blank", 
+                 fill = heat.colors(3))
+
+
+#unique families per treatment
+uniquefamily_psyQ <- count(JH03_JH05_taxa_ordered[setdiff(setdiff(Area2Q, Area12Q), Area23Q), ], "Family")
+sum(uniquefamily_psyQ$freq)
+write.table(uniquefamily_psyQ, file="uniquefamily_psyQ.txt", sep="\t")
+uniquefamily_agroQ <- count(JH03_JH05_taxa_ordered[setdiff(setdiff(Area1Q, Area12Q), Area13Q), ], "Family")
+sum(uniquefamily_agroQ$freq)
+write.table(uniquefamily_agroQ, file="uniquefamily_agroQ.txt", sep="\t")
+uniquefamily_mockQ <- count(JH03_JH05_taxa_ordered[setdiff(setdiff(Area3Q, Area13Q), Area23Q), ], "Family")
+sum(uniquefamily_mockQ$freq)
+write.table(uniquefamily_mockQ, file="uniquefamily_mockQ.txt", sep="\t")
+
+
+#Export full taxonomy information for higher resolution
+unique_taxonomy_PsyQ <- JH03_JH05_taxa_ordered[setdiff(setdiff(Area2Q, Area12Q), Area23Q), ]
+write.table(unique_taxonomy_PsyQ, file="unique_taxonomy_PsyQ.txt", sep="\t")
+
+unique_taxonomy_agroQ <- JH03_JH05_taxa_ordered[setdiff(setdiff(Area1Q, Area12Q), Area13Q), ]
+write.table(unique_taxonomy_agroQ, file="unique_taxonomy_agroQ.txt", sep="\t")
+
+unique_taxonomy_mockQ <- JH03_JH05_taxa_ordered[setdiff(setdiff(Area2Q, Area12Q), Area23Q), ]
+write.table(unique_taxonomy_mockQ, file="unique_taxonomy_mockQ.txt", sep="\t")
+
+
+
+#unique orders
+uniqueorder_psyQ <- count(JH03_JH05_taxa_ordered[setdiff(setdiff(Area2Q, Area12Q), Area23Q), ], "Order")
+sum(uniqueorder_psyQ$freq)
+write.table(uniqueorder_psyQ, file="uniqueorder_psyQ.txt", sep="\t")
+uniqueorder_agroQ <- count(JH03_JH05_taxa_ordered[setdiff(setdiff(Area1Q, Area12Q), Area13Q), ], "Order")
+sum(uniqueorder_agroQ$freq)
+write.table(uniqueorder_agroQ, file="uniqueorder_agroQ.txt", sep="\t")
+uniqueorder_mockQ <- count(JH03_JH05_taxa_ordered[setdiff(setdiff(Area3Q, Area13Q), Area23Q), ], "Order")
+sum(uniqueorder_mockQ$freq)
+write.table(uniqueorder_mockQ, file="uniqueorder_mockQ.txt", sep="\t")
+
+

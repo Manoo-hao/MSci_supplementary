@@ -1,0 +1,1389 @@
+#############################################################
+#
+# Ref to the ARTICLE
+# 
+# Manuel Blank, Pilar Morera Margarit & Davide Bulgarelli
+# 
+# m.blank@dundee.ac.uk
+# 
+# d.bulgarelli@dundee.ac.uk
+# 
+#
+#############################################################
+
+############################################################
+#useful tutorials
+#https://joey711.github.io/phyloseq/tutorials-index.html
+############################################################
+
+#############################################################
+# Clean-up the memory and start a new session
+#############################################################
+
+rm(list=ls())
+dev.off()
+
+#############################################################
+# Libraries required
+#############################################################
+
+#1st time installation
+#source("http://bioconductor.org/biocLite.R")
+#biocLite("phyloseq")
+#biocLite("DESeq2")
+#biocLite("PMCMR")
+#from here on: requirements for ANCOM package (installed from zip file)
+#biocLite("exactRankTests")
+#biocLite("openxlsx")
+#biocLite("DT")
+#biocLite("coin")
+#biocLite("grid")
+#biocLite("futile.logger")
+
+#required packages 
+library("phyloseq")
+library("DESeq2")
+library("ggplot2")
+library("vegan")
+library ("ape")
+library("PMCMR")
+library("plyr")
+library("VennDiagram")
+library("grid")
+library("futile.logger")
+#from here on: requirements for ANCOM package (installed from zip file)
+#library("exactRankTests")
+#library("openxlsx")
+#library("DT")
+#library("coin")
+#library("ancom.R")
+
+
+
+#set the working directory (mind that your working directory has a different path)
+setwd("G:/Uni/MSci/Box Sync/Davide_lab_experiments/JH03_JH05_MB/JH03_JH05_R_analysis/BRI")
+#Davide cpu
+#setwd("C:/Users/DB42008/Box Sync/Davide_lab_experiments/JH03_JH05_MB/JH03_JH05_R_analysis/")
+
+#############################################################
+#import the count matrix and the desing file
+#############################################################
+
+
+#OTU table generated using QIIME 1.9.0. open ref. 
+dat_info <- read.delim("JH03_JH05_MB_otu_table_nc2.txt", skip=1, sep = "\t", header=T, row.names= 1, blank.lines.skip = FALSE)
+
+#inspect the file 
+dim(dat_info)
+colnames(dat_info)
+
+#extract the total number of reads clustered at OTU 97% identiy 
+#(the number underneath the Hv identifier represents the total number of reads clustered for that sample) 
+OTU_97_reads <- sort(colSums(dat_info[, 1:length(colnames(dat_info)) -1]))
+OTU_97_reads
+
+#total reads
+OTU_97_reads_sum <- sum(colSums(dat_info[, 1:length(colnames(dat_info)) -1]))
+OTU_97_reads_sum
+
+#design file
+design <- read.delim("Map_JH0305_MB.txt", sep = "\t", header=TRUE, row.names=1)
+design
+
+#remove chloroplast and mitochondria OTUs from the original dataset
+Chloroplast <- dat_info[grepl("Chloroplast", dat_info$ConsensusLineage), ]
+dim(Chloroplast)
+
+mitochondria <- dat_info[grepl("mitochondria", dat_info$ConsensusLineage), ]
+dim(mitochondria)
+
+#set a difference between the row names of the the three datasets: this information will be used to filter out Plant derived OTUs from the OTU table
+noPlants <- setdiff(rownames(dat_info), c(rownames(Chloroplast), rownames(mitochondria)))
+
+#inspect the results
+length(rownames(dat_info))
+length(noPlants)
+
+#save the OTUids list generated at line 81. This will be used to usbset the OTU table and generate taxa-tables in QIIME
+#write(noPlants, "JH0305_noPlant_OTUs_id.txt")
+
+#generate a new OTU table which will be devoid of Chloroplast and Mitochondria OTUs
+dat_info_noPlants <- dat_info[noPlants, ]
+
+#create a new count matrix without OTUs assigned to Chloroplast and Mitochondria
+dat_count <- dat_info[, rownames(design)]
+dat_count_noplants <- dat_info[noPlants, rownames(design)]
+dim(dat_count_noplants)
+
+#and a new taxa table
+dat_tax_noPlants <- as.data.frame(dat_info[rownames(dat_count_noplants), 111])
+rownames(dat_tax_noPlants) <- rownames(dat_count_noplants)
+#save the above file and in excel we will create a new tax table where each column represents a taxonomic rank
+#write.table(dat_tax_noPlants, file="JH0305_dat_tax_noPlants.txt", sep="\t")
+#Excel file renamed to JH03_JH05_dat_tax_noPlants_ordered.txt
+
+#check the effect of mitochondria/chloroplast depletion on the new OTU table
+#with plant sequences
+dim(dat_count)
+
+#w/o plant-derived sequences
+dim(dat_count_noplants)
+
+#total number of reads w/o plant sequences
+OTU_97_reads_noPlants <- colSums(dat_count_noplants)
+OTU_97_reads_noPlants
+
+#now sort per sample
+sort(OTU_97_reads_noPlants)
+
+#total number of reads
+OTU_97_reads_noPlants_sum <- sum(OTU_97_reads_noPlants)
+OTU_97_reads_noPlants_sum 
+
+#Define the proportion of non-plant reads in the original dataset 
+useful_reads <- (OTU_97_reads_noPlants_sum/OTU_97_reads_sum)*100
+useful_reads
+
+#create a dataset to visualise the proportion of reads per sample before and after removing OTUs assigned to chloroplast and mitochondria
+OTU_97_reads_noPlants <- as.data.frame(OTU_97_reads_noPlants)
+OTU_97_microbial_reads_proportion <- as.data.frame(colSums(dat_count_noplants)/colSums(dat_count))*100
+
+#rename the columns in the generated datasets
+colnames(OTU_97_reads_noPlants) <- c("reads")
+colnames(OTU_97_microbial_reads_proportion) <- c("Microbial_OTUs_reads")
+
+#combine these datasets with the design file
+design_info <- cbind(design, OTU_97_reads_noPlants)
+design_info_2 <- cbind(design_info, OTU_97_microbial_reads_proportion)
+
+#calculate the max, min and mean number of reads for the dataset
+mean(design_info_2$reads)
+max(design_info_2$reads)
+min(design_info_2$reads)
+
+##############################################################
+
+#visualise property of the sequencing library
+
+#re-order the factors for the Microhabitat
+design_info_2$Microhabitat <- ordered(design_info_2$Microhabitat, levels=c("Bulk", "Rhizosphere"))
+
+#visualisation of read distriution of individual experiments
+with(design_info_2, boxplot(reads ~ Microhabitat, xlab = "Microhabitat", ylab = "number of reads",   main = "Sequencing depth, microbial reads"))
+
+#visualisation of percentage of microbial OTUs (vs. Plastids)
+with(design_info_2, boxplot(Microbial_OTUs_reads ~ Microhabitat, xlab = "Microhabitat", ylab = "% of sequencing reads",   main = "Microbial OTUs reads"))
+
+
+#############################################################
+#Genererate the phyloseq object
+#############################################################
+#This is a file that include all the relevant information for the analysis: the OTU table, the taxonmy information, the phylogenetic tree and a mapping file 
+#again the concept of Operational Taxonomic Unit is explained here https://en.wikipedia.org/wiki/Operational_taxonomic_unit 
+#and also in some of my reviews (see Bulgarelli et al., 2013 Annual Review of Plant Biology or Schlaeppi and Bulgarelli, MPMI 2014)
+
+#The phyloseq package and the phyloseq object is just gorgeous. Because it creates a file that recapitulates 
+#a) The OTU Table counts. This is a n rows x m columns dataframe, where n represents the individual OTUs clustered at 97% sequence similarity and m the samples. The cells of the dataframe are "filled" with the sequencing reads (often reported as just reads) generated in MiSeq and assigned to that OTU in given a given sample
+#b) The taxonomy information. For each of the n OTUs, a representative sequence (the most abudant in the cluster) has been used to query a database containing the taxonomy information for Prokaryotes and identify the bugs closely related to that given OTUs
+#c) The mapping file (oftend reported as a design file or metadata): it says what the samples are, from where they come from and also it includes additional attributes that can be used in the analysis to correlate microbiota data with host traits (e.g., treatment, dry weight...)
+#d) The phylogenetic tree. A phylogenetic tree is a graphical representation of the evolutionary relationships among organisms. In our partcular case we deal with a "gene tree". 
+#A tree is composed by two elements: nodes, representing the feature of the organisms under study (in our case individual OTUs), and branches connecting nodes, defining the relationships among nodes (e.g., sequence diversity among the 16S rRNA gene sequences we are analysing using)
+
+
+#Now the two big advantages of phyloseq are: 
+#1) once created a phyloseq object, you can manipulate simoultaneously all the relevant components at once (e.g., removing samples, removing OTUs) something that otherwise will take you ages and quite possibly a lot of mistake
+#2) the second advantage is that phyloseq is a wrapper that can be used directly for a variety of data visualisation and calculation (this will be illustrated below)
+
+#Ok let' start
+
+#a) The OTU Table counts
+#mind that the file dat_count_noplants has been generated above  
+JH03_JH05_OTU <- otu_table(dat_count_noplants, taxa_are_rows=TRUE)
+
+#b) The taxonomy information
+#Note that the file JH02_JH03_dat_tax_noPlants_ordered.txt has been generated from the output of lines 96-100  
+#it is a tab-delimited file with 8 columns, the column headers are: OTU id; "Kingdom", "Phylum",  "Class",   "Order",   "Family",  "Genus",   "Species",
+JH03_JH05_taxa_ordered <- read.delim ("JH0305_dat_tax_noPlants_ordered.txt", sep = "\t", row.names=1, header=T, blank.lines.skip = FALSE)
+JH03_JH05_taxa <- tax_table(as.matrix(JH03_JH05_taxa_ordered))
+dim(JH03_JH05_taxa)
+
+#c)The mapping file 
+JH03_JH05_map <- sample_data(design)
+
+#The phylogenetic tree: closed ref. The tree is rooted, therefore skip lines 180-196
+JH03_JH05_tree  <- read_tree_greengenes("97_otus.tree.gz")
+is.rooted(JH03_JH05_tree)
+
+
+#merge the files and create the phyloseq object
+JH03_JH05_data_phyloseq <- merge_phyloseq(JH03_JH05_OTU, JH03_JH05_taxa, JH03_JH05_map,  JH03_JH05_tree)
+
+#inspect the generated data
+JH03_JH05_data_phyloseq
+sum(colSums(otu_table(JH03_JH05_data_phyloseq)))
+dim(dat_count_noplants)
+sum(colSums(dat_count_noplants))
+
+
+#############################################################
+#Pre-processing
+#There are couple of things to do before we can start the analysis
+#the first one is to inspect the distribution of reads per sample
+sort(colSums(otu_table(JH03_JH05_data_phyloseq)))
+#we can visualise them
+hist(sort(colSums(otu_table(JH03_JH05_data_phyloseq))))
+
+
+#Remove samples with <12000 reads. (I.e. remove sample with only 4 reads and remove Hv1109 as it decreases the readcount severely later in alpha diversity calculation of the flg experiment
+#(check again when analysing BRI1!!!).)
+#left 12000 for now, check again after rarefying and adapt if necessary.
+#It is possible that these 4 reads led to the definition of an OTU that is now still in the phyloseq object, but has 0 reads in all samples.
+#Will need to run another line to remove the potential 'ghost-OTU'.
+JH03_JH05_data_phyloseq_2 <- prune_samples(sample_sums(JH03_JH05_data_phyloseq)>=5, JH03_JH05_data_phyloseq)
+JH03_JH05_data_phyloseq_2
+
+#remove empty OTUs
+JH03_JH05_data_phyloseq_3 <- prune_taxa(taxa_sums(JH03_JH05_data_phyloseq_2) > 0, JH03_JH05_data_phyloseq_2)
+JH03_JH05_data_phyloseq_3
+
+
+#The first thing is to compensate for the discrepancies in sequencing depth among samples, and we will adopt a relative abundance transformation
+#Note that this is matter of huge debate, we will come back later to that, let's have quick look at both dataset 
+#first transform to even sampling depth (proportional transformation)
+JH03_JH05_data_phyloseq_prop <- transform_sample_counts(JH03_JH05_data_phyloseq_3,  function(x) 1e+06 * x/sum(x))
+
+#OK let's inspect our dataset using a  Non-metric multidimensional scaling
+#A Non-metric multidimensional scaling (NMDS) is an ordination method that ranks distance between objects and uses these ranks
+#to map the objects into a 2-D space to preserve their ranked distance not the original distnace. It is an iterative approach that
+#whose final output is determined by the lowest level of "stress". The stress value reflects how well the ordination summarises the real data.
+#Number of samples, very distinct experiments may reslult in higher level of stress
+#There is no a general consensus, but stress values above 0.2 should be handled with care
+
+#Pro: NMDS accepts any kind of distance measure and samples (no assumption on their distribution)
+#Cons: is a rank-based analysis and it says basically nothing on real whitin or between sample distances (just that some samples are more similar than others)
+
+#NMDS bray
+JH03_JH05_data_phyloseq_prop.NMDS_bray <- ordinate(JH03_JH05_data_phyloseq_prop, "NMDS", "bray")
+#stress value is OK at 0.1, at 0,2 the plot is not really significant
+#the warning message is something that will become clearer soon
+
+#Plot
+plot_ordination(JH03_JH05_data_phyloseq_prop, JH03_JH05_data_phyloseq_prop.NMDS_bray , color = "LibraryID", shape = "Soil")
+plot_ordination(JH03_JH05_data_phyloseq_prop, JH03_JH05_data_phyloseq_prop.NMDS_bray , color = "LibraryID", shape = "Experiment")
+#It's clear that the two experiments couldn't be more different
+
+#weighted unifrac distance: let's take into consideration phylogenetic assignemtns
+JH03_JH05_data_phyloseq_prop_wunifrac <- ordinate(JH03_JH05_data_phyloseq_prop, "NMDS", "unifrac", weighted=TRUE)
+#see note about NMDS stress: same as before...
+plot_ordination(JH03_JH05_data_phyloseq_prop, JH03_JH05_data_phyloseq_prop_wunifrac , color = "LibraryID", shape = "Soil")
+plot_ordination(JH03_JH05_data_phyloseq_prop, JH03_JH05_data_phyloseq_prop_wunifrac , color = "LibraryID", shape = "Experiment")
+
+#Now we can draw a first conclusion: the two datasets are so distinct that cannot be analysed simoultaneously
+
+
+#######################################
+#Split flg and BRI1 experiments  (use the altered dataset for this (with removed sample and no ghost OTUs))
+#######################################
+
+#Subset samples takes the phyloseq object and a value by which it is subsetted.
+#Flagellin experiment
+JH03_JH05_data_phyloseq_flg <- subset_samples(JH03_JH05_data_phyloseq_3, Experiment=="Flagellin")
+#BRI1 experiment
+JH03_JH05_data_phyloseq_bri <- subset_samples(JH03_JH05_data_phyloseq_3, Experiment=="BRI1")
+
+
+#Now we need to make sure that during the subsetting we haven't retained "ghost" OTUs: OTUs present in one dataset and with 0 counts in the samples of the other datasets
+#Good example in the help page of prune_taxa
+#flg experiment
+JH03_JH05_data_phyloseq_flg_2 <- prune_taxa(taxa_sums(JH03_JH05_data_phyloseq_flg) > 0, JH03_JH05_data_phyloseq_flg) 
+#BRI1 experiment
+JH03_JH05_data_phyloseq_bri_2 <- prune_taxa(taxa_sums(JH03_JH05_data_phyloseq_bri) > 0, JH03_JH05_data_phyloseq_bri) 
+
+
+
+##############################
+#Abundance filtering BRI1 data
+##############################
+
+#Pre-processing 
+#It is advisable to remove OTUs with low counts because these OTUs are poorly reproducible and will interefere with the analysis rather than adding biologically meningful information
+#you have 80 samples with 5 reps each 5/50 * 100 = we could retain OTUs that are observed 5 times (number of replicates per condition) in at least 10% (0.1*length(x)) of the samples
+JH03_JH05_data_phyloseq_bri_3 = filter_taxa(JH03_JH05_data_phyloseq_bri_2, function(x) sum(x > 5) > (0.1*length(x)), TRUE)
+
+#Let's inspect the effect of this abundance threshold
+#total number of OTUs
+bri_2_OTUs <- length(rownames(otu_table(JH03_JH05_data_phyloseq_bri_2)))
+bri_3_OTUs <- length(rownames(otu_table(JH03_JH05_data_phyloseq_bri_3)))
+#proportion
+bri_3_OTUs/bri_2_OTUs * 100
+#total number of reads
+bri_2_reads <- sum(colSums(otu_table(JH03_JH05_data_phyloseq_bri_2)))
+bri_3_reads <- sum(colSums(otu_table(JH03_JH05_data_phyloseq_bri_3)))
+#proportion
+bri_3_reads/bri_2_reads * 100
+
+
+
+################################
+#Alphadiversity calculation
+###############################
+
+#alphadiversity calculation
+#For theoretical info on alphadiversity see slide 29 of the QIIME tutorial (for this work only Chao1 and Shannon indices computed)
+
+#use a rarefied dataset
+#randomly chosen seed based on the seed used in the phyloseq handbook.
+set.seed(711)
+JH03_JH05_data_phyloseq_bri_3_rare <- rarefy_even_depth(JH03_JH05_data_phyloseq_bri_3)
+
+#now compare the two datasets
+JH03_JH05_data_phyloseq_bri_3
+JH03_JH05_data_phyloseq_bri_3_rare 
+
+#number of reads per sample: original dataset different reads per sample
+sample_sums(JH03_JH05_data_phyloseq_bri_3)
+sample_sums(JH03_JH05_data_phyloseq_bri_3_rare)
+
+#Total amount of reads
+sum(sample_sums(JH03_JH05_data_phyloseq_bri_3))
+sum(sample_sums(JH03_JH05_data_phyloseq_bri_3_rare))
+
+#flg
+#~90% loss of total reads as all samples are rarefied to ~11000. The next more abundant sample has ~26000 reads.
+#Reran the code after discarding Hv1109.
+#bri
+#set filter back to exclude OTUs with less than 5 reads. The amount of reads after rarefaction remains the same
+#i.e. the samples with 5 and 11000 reads are both in the flagellin dataset
+
+#OK let's try to visualise these info via boxplot
+JH03_JH05_alpha_bri_rare <- estimate_richness(JH03_JH05_data_phyloseq_bri_3_rare, measures = c("Chao1", "Shannon"))
+#inspect the generated file
+class(JH03_JH05_alpha_bri_rare)
+JH03_JH05_alpha_bri_rare
+#perfect now we have a dataframe: we can generated box plots and calculate some stats (i.e. are the microbiotas associated with our samples different)
+#Let's use the code I used in the barley manuscript on Cell Host and Microbe
+#First we need to combine the design file with the index files (else we cannot group ecotypes together)
+
+#To retrieve information from modified design file, retrieve it from the phyloseq object
+design_bri <- as.data.frame(sample_data(JH03_JH05_data_phyloseq_bri_3))
+design_bri
+
+#Check if order of the samples is the same before combining data frames
+rownames(design_bri) == rownames(JH03_JH05_alpha_bri_rare)
+
+JH03_JH05_alpha_bri_rare_info <- cbind(design_bri, JH03_JH05_alpha_bri_rare)
+#check the new dataset: it contains both description of the samples and alpha 
+JH03_JH05_alpha_bri_rare_info
+
+#generate a box plot for chao1 index 
+#re-order the factors
+JH03_JH05_alpha_bri_rare_info$Description <- ordered(JH03_JH05_alpha_bri_rare_info$Description, levels=c("QuarryfieldSoilB", "QuarryfieldBowmanR", "QuarryfieldBW033R", "QuarryfieldBW312R", "QuarryfieldBW865R",
+                                                                                                         "TayportSoilB", "TayportBowmanR", "TayportBW033R", "TayportBW312R", "TayportBW865R"))
+
+#With the new descriptions that include the soil type: Is this still needed?
+JH03_JH05_alpha_bri_rare_info$Soil <- ordered(JH03_JH05_alpha_bri_rare_info$Soil, levels=c("Quarryfield", "Tayport"))
+
+#Genotype as separator seems to make sense: Need to check how to do stats with this, as wilcox test can only do exactly 2 levels, i.e. separation by soil type.
+#JH03_JH05_alpha_bri_rare_info$Soil <- ordered(JH03_JH05_alpha_bri_rare_info$Genotype, levels=c("Soil", "Bowman", "BW033", "BW312", "BW865"))
+
+#find ylim
+min(JH03_JH05_alpha_bri_rare_info$Chao1)
+max(JH03_JH05_alpha_bri_rare_info$Chao1)
+
+min(JH03_JH05_alpha_bri_rare_info$Shannon)
+max(JH03_JH05_alpha_bri_rare_info$Shannon)
+
+#Previously the first line was '...Chao1 ~ Description*Soil...' but since the Descriptions were altered to include the soil type, this could be removed.
+#Chao1 - export 1068x...
+with(JH03_JH05_alpha_bri_rare_info, boxplot  (Chao1 ~ Description, xaxt = "n", main = "Chao1 index of rarefied dataset", ylim = c(1200,1700), par(mar = c(7, 4, 2, 2)), las = 2, space = 1))
+mtext(side = 1, text = "Quarryfield                                                                                                                               Tayport", line = 6)
+mtext(side = 1, text = "___________________________________________________        __________________________________________________", line = 5.1)
+mtext(side = 2, text = "Chao1", line = 3)
+labelsChao <- paste(names(table(JH03_JH05_alpha_bri_rare_info$Description)))
+text(seq(1, length(labelsChao) ,by=1), par("usr")[3], 
+     srt = 45, adj= 1.1, xpd = TRUE,
+     labels = paste(labelsChao), cex=0.85,
+     xaxt = "n")
+
+#Shannon Index - export 1068x...
+with(JH03_JH05_alpha_bri_rare_info, boxplot  (Shannon ~ Description, xaxt = "n", main = "Shannon index of rarefied dataset", ylim = c(4,7), par(mar = c(7, 4, 2, 2)), las = 2, space = 1))
+mtext(side = 1, text = "Quarryfield                                                                                                                               Tayport", line = 6)
+mtext(side = 1, text = "_____________________________________________________        _____________________________________________________", line = 5.1)
+mtext(side = 2, text = "Shannon", line = 3)
+labelsShannon <- paste(names(table(JH03_JH05_alpha_bri_rare_info$Description)))
+text(seq(1, length(labelsShannon) ,by=1), par("usr")[3], 
+     srt = 45, adj= 1.1, xpd = TRUE,
+     labels = paste(labelsShannon), cex=0.85,
+     xaxt = "n")
+
+
+#############################################################
+#Statistical Analysis on Alphadiversity
+
+#is data normally distributed? --> Histogram
+hist(JH03_JH05_alpha_bri_rare_info$Chao1)
+hist(JH03_JH05_alpha_bri_rare_info$Shannon)
+
+#is data normally distributed? --> qq-plot
+qqnorm(JH03_JH05_alpha_bri_rare_info$Chao1)
+qqline(JH03_JH05_alpha_bri_rare_info$Chao1, lty = 2)
+qqnorm(JH03_JH05_alpha_bri_rare_info$Shannon)
+qqline(JH03_JH05_alpha_bri_rare_info$Shannon, lty = 2)
+
+#is data normally distributed? --> shapiro-wilk test for normality
+shapiro.test(JH03_JH05_alpha_bri_rare_info$Chao1)
+shapiro.test(JH03_JH05_alpha_bri_rare_info$Shannon)
+# p<0.05 meaning data is NOT likely normally distributed.
+# p>0.05 means data is likely normally distributed
+#Chao seems normally distributed, Shannon doesn't, so what test do I use instead? ANOVA?
+
+
+#Assess soil effect on alphadiversity
+# variable left of '~' is the dependent variable, to the right of '~' it's the independent variable.
+wilcox.test(Chao1 ~ Soil, data = JH03_JH05_alpha_bri_rare_info)
+#t.test(Chao1 ~ Soil, data = JH03_JH05_alpha_bri_rare_info)???
+wilcox.test(Shannon ~ Soil, data = JH03_JH05_alpha_bri_rare_info)
+# Strong soil effect found --> treat experiments from different soils separately.
+#Soil effect a lot stronger on Richness than on Evenness, i.e. abundance changes a lot in a soil dependent manner, the composition less so.
+
+
+# Split dataset by soil type
+quarry_samples <- row.names(JH03_JH05_alpha_bri_rare_info)[which(JH03_JH05_alpha_bri_rare_info$Soil == "Quarryfield")]
+JH03_JH05_alpha_bri_rare_info_quarryfield <- JH03_JH05_alpha_bri_rare_info[quarry_samples, ]
+
+tayport_samples <- row.names(JH03_JH05_alpha_bri_rare_info)[which(JH03_JH05_alpha_bri_rare_info$Soil == "Tayport")]
+JH03_JH05_alpha_bri_rare_info_tayport <- JH03_JH05_alpha_bri_rare_info[tayport_samples, ]
+
+
+#perform a non-parametric anova for individual (Soil) experiments
+#quarryfield
+#will have to test if residuals are normally distributed to do ANOVA instead.
+aov(Chao1 ~ Description, data = JH03_JH05_alpha_bri_rare_info_quarryfield)
+TukeyHSD(aov(Chao1 ~ Description, data = JH03_JH05_alpha_bri_rare_info_quarryfield))
+#posthoc.kruskal.dunn.test (x=JH03_JH05_alpha_bri_rare_info_quarryfield$Chao1, g=JH03_JH05_alpha_bri_rare_info_quarryfield$Description, p.adjust.method="BH")
+#test for richness --> no significant value
+
+kruskal.test(Shannon ~ Description, data = JH03_JH05_alpha_bri_rare_info_quarryfield)
+#test for evenness --> no significant value detected. Largest effect found by bulk vs. planted with bowman
+#posthoc.kruskal.dunn.test (x=JH03_JH05_alpha_bri_rare_info_quarryfield$Shannon, g=JH03_JH05_alpha_bri_rare_info_quarryfield$Description, p.adjust.method="BH")
+
+
+#tayport
+aov(Chao1 ~ Description, data = JH03_JH05_alpha_bri_rare_info_tayport)
+TukeyHSD(aov(Chao1 ~ Description, data = JH03_JH05_alpha_bri_rare_info_tayport))
+#kruskal.test(Chao1 ~ Description, data = JH03_JH05_alpha_bri_rare_info_tayport)
+#no significant value
+#posthoc.kruskal.dunn.test (x=JH03_JH05_alpha_bri_rare_info_tayport$Chao1, g=JH03_JH05_alpha_bri_rare_info_tayport$Description, p.adjust.method="BH")
+
+kruskal.test(Shannon ~ Description, data = JH03_JH05_alpha_bri_rare_info_tayport)
+posthoc.kruskal.dunn.test (x=JH03_JH05_alpha_bri_rare_info_tayport$Shannon, g=JH03_JH05_alpha_bri_rare_info_tayport$Description, p.adjust.method="BH")
+#this is exciting!
+#looks like the effect is tayport specific and that the 2 mutant genotypes lead to significant values
+#whereas the dward control doesn't. However, the doubling up of numbers is suspicious and I will have to dig into that
+#also when looking at the graph, the BW865 doesn't look too different from BW033 or BW312, perhaps the different value could be caused by the outlier?
+
+
+
+
+#############################################################
+#Betadiversity (on rarefied dataset - no transformation to relative abundance needed)
+#first transform to even sampling depth (proportional transformation)
+#JH05_data_phyloseq_MB_3_prop <- transform_sample_counts(JH05_data_phyloseq_MB_3,  function(x) 1e+06 * x/sum(x))
+
+#OK let's inspect our dataset using a  Non-metric multidimensional scaling
+#A Non-metric multidimensional scaling (NMDS) is an ordination method that ranks distance between objects and uses these ranks
+#to map the objects into a 2-D space to preserve their ranked distance not the original distnace. It is an iterative approach that
+#whose final output is determined by the lowest level of "stress". The stress value reflects how well the ordination summarises the real data.
+#Number of samples, very distinct experiments may reslult in higher level of stress
+#There is no a general consensus, but stress values above 0.2 should be handled with care
+
+#Pro: NMDS accepts any kind of distance measure and samples (no assumption on their distribution)
+#Cons: is a rank-based analysis and it says basically nothing on real whitin or between sample distances (just that some samples are more similar than others)
+
+#NMDS bray (bray is the method the distance matrix is generated with, NMDS the ordination method)
+JH03_JH05_data_phyloseq_bri_rare.NMDS_bray <- ordinate(JH03_JH05_data_phyloseq_bri_3_rare, "NMDS", "bray")
+#stress value is OK at 0.1, at 0,2 the plot is not really significant
+
+#OK let's focus on the genotype value2
+p = plot_ordination(JH03_JH05_data_phyloseq_bri_3_rare, JH03_JH05_data_phyloseq_bri_rare.NMDS_bray, color = "Genotype", shape = "Soil" )
+p = p + geom_point(size = 5, alpha = 0.75)
+p + ggtitle("NMDS 16S data, Bray distance, BRI experiment")
+
+
+#OK let's try a PCoA
+#PCoA (with O not captial) is a Principal Coordinate Analysis derived from PCA (Principal Component Analysis)
+#Like NMDS, PCoA is an exploratory analysis useful to identify patterns and gradients. OK let's see how does it work:
+#We need to recall some of the theory of the PCA to understand PCoA. PCA calculates new synthetic variables that are linear combinations of original variables (in our case: OTUs) with the aim of representing a n x m matrix in a two dimensional space.
+#The cumulative percentage of variance accounted by for the axisi indicates how much variation is described by the plots.
+#PCAs do not work with any dissimilarity matrices and generally do not perform well with many zeros.
+#Instead, PCoA elaborates functions of the original variables (instead of linear combinations) and then generates two-dimensional plots (whose proportion of variance is explained in the similar way)
+#Because PCoA is not a linera combination of the original variables the axis do to explain directly a variable (but they can easily inferred).
+
+
+JH03_JH05_data_phyloseq_bri_3_rare.PCoA_bray <- ordinate(JH03_JH05_data_phyloseq_bri_3_rare, "PCoA", "bray")
+#now let's assign shapes to the Genotype
+p=plot_ordination(JH03_JH05_data_phyloseq_bri_3_rare, JH03_JH05_data_phyloseq_bri_3_rare.PCoA_bray, color = "Genotype", shape="Soil")
+p = p + geom_point(size = 5, alpha = 0.75)
+p + ggtitle("PCoA 16S data, Bray distance, BRI1 experiment")
+
+#skipped this one for now
+#constrained ordinations
+#JH03_JH05_data_phyloseq_flg_3_rare.CAP_bray <- ordinate(JH03_JH05_data_phyloseq_flg_3_rare, "CAP", "bray", ~Microhabitat * Treatment)
+#now let's assign shapes to the Genotype
+#p=plot_ordination(JH03_JH05_data_phyloseq_flg_3_rare, JH03_JH05_data_phyloseq_flg_3_rare.CAP_bray, color = "Description", shape="Soil")
+#p = p + geom_point(size = 5, alpha = 0.75)
+#p + ggtitle("CAP 16S data, Bray distance, Flagellin experiment")
+#asses the significance of the axes
+#anova.cca(JH03_JH05_data_phyloseq_flg_3_rare.CAP_bray, permutations = 5000, first = FALSE)
+
+
+#weighted unifrac (unifrac is the method the distance matrix is generated, PCoA is the ordination method)
+JH03_JH05_data_phyloseq_bri_3_rare.PCoA_unifrac <- ordinate(JH03_JH05_data_phyloseq_bri_3_rare, "PCoA", "unifrac", weighted = TRUE)
+#now let's assign shapes to the Genotype
+p=plot_ordination(JH03_JH05_data_phyloseq_bri_3_rare, JH03_JH05_data_phyloseq_bri_3_rare.PCoA_unifrac, color = "Genotype", shape = "Soil")
+p = p + geom_point(size = 5, alpha = 0.75)
+p + ggtitle("PCoA 16S data, wUnifrac distance, BRI1 mutants")
+#use this as one of the result figures
+
+#Why do we even do the bray distance matrix if unifrac is more relevant.
+#Similarly why do we do NMDS ordination?
+
+WU_BRI <- phyloseq::distance(JH03_JH05_data_phyloseq_bri_3_rare, "unifrac", weighted= TRUE)
+adonis(WU_BRI ~ Soil * Genotype, data= design[colnames(otu_table(JH03_JH05_data_phyloseq_bri_3_rare)), ], permutations = 5000)
+#so genotype explains more than soil according to this. This could possibly be due to this quarryfield outlier, or due to the fact that there are a lot more samples of planted than of unplanted soil.
+
+
+#Split rarefied phyloseq object by Microhabitat. Based on the previous plot, the soil and and microhabitat effects are evident, but what we want to know is the effect of the treatment.
+#So start with separating by microhabitat and then do a constrained ordination on the treatment.
+#Bulk soil habitat
+JH03_JH05_data_phyloseq_bri_3_rare_bulk <- subset_samples(JH03_JH05_data_phyloseq_bri_3_rare, Microhabitat=="Bulk")
+#Rhizosphere habitat
+JH03_JH05_data_phyloseq_bri_3_rare_rhizosphere <- subset_samples(JH03_JH05_data_phyloseq_bri_3_rare, Microhabitat=="Rhizosphere")
+
+#Bulk soil habitat
+JH03_JH05_data_phyloseq_bri_3_rare_bulk_2 <- prune_taxa(taxa_sums(JH03_JH05_data_phyloseq_bri_3_rare_bulk) > 0, JH03_JH05_data_phyloseq_bri_3_rare_bulk) 
+#Rhizosphere habitat
+JH03_JH05_data_phyloseq_bri_3_rare_rhizosphere_2 <- prune_taxa(taxa_sums(JH03_JH05_data_phyloseq_bri_3_rare_rhizosphere) > 0, JH03_JH05_data_phyloseq_bri_3_rare_rhizosphere) 
+
+
+#skipped this one for now
+#constrained ordination for bulk soil constrained to microhabitat
+#JH03_JH05_data_phyloseq_flg_3_rare_bulk_2.CAP_bray <- ordinate(JH03_JH05_data_phyloseq_flg_3_rare_bulk_2, "CAP", "bray", ~ Soil * Treatment)
+#now let's assign shapes to the Genotype
+#p=plot_ordination(JH03_JH05_data_phyloseq_flg_3_rare_bulk_2, JH03_JH05_data_phyloseq_flg_3_rare_bulk_2.CAP_bray, color = "Treatment", shape="Soil")
+#p = p + geom_point(size = 5, alpha = 0.75)
+#p + ggtitle("CAP 16S data, Bray distance, Bulk soil")
+#asses the significance of the axes
+#anova.cca(JH03_JH05_data_phyloseq_flg_3_rare_bulk_2.CAP_bray, permutations = 5000, first = FALSE)
+
+
+#constrained ordination for rhizosphere soil constrained to microhabitat
+#JH03_JH05_data_phyloseq_flg_3_rare_rhizosphere_2.CAP_bray <- ordinate(JH03_JH05_data_phyloseq_flg_3_rare_rhizosphere_2, "CAP", "bray", ~ Soil * Treatment)
+#now let's assign shapes to the Genotype
+#p=plot_ordination(JH03_JH05_data_phyloseq_flg_3_rare_rhizosphere_2, JH03_JH05_data_phyloseq_flg_3_rare_rhizosphere_2.CAP_bray, color = "Treatment", shape="Soil")
+#p = p + geom_point(size = 5, alpha = 0.75)
+#p + ggtitle("CAP 16S data, Bray distance, Rhizosphere soil")
+#asses the significance of the axes
+#anova.cca(JH03_JH05_data_phyloseq_flg_3_rare_rhizosphere_2.CAP_bray, permutations = 5000, first = FALSE)
+#there seems to be a shift in composition but it depends on soil type.
+#put both constrained ordinations as third result slide
+
+
+
+
+
+#############################################################
+#DESeq analysis split by soil and for individual mutants
+#############################################################
+
+#Split rarefied phyloseq object by Soil. In the previous DEseq analysis it was not taken into account that the soils show a strong effect.
+#As DEseq 'borrows' information from other OTUs, splitting by microhabitat might have circumvented the effect of the individual soils.
+#The same analysis as before is repeated but split by soil.
+#Tayport Soil
+JH03_JH05_data_phyloseq_bri_3_rare_tayport <- subset_samples(JH03_JH05_data_phyloseq_bri_3_rare, Soil=="Tayport")
+#Quarryfield Soil
+JH03_JH05_data_phyloseq_bri_3_rare_quarryfield <- subset_samples(JH03_JH05_data_phyloseq_bri_3_rare, Soil=="Quarryfield")
+
+#Tayport Soil
+JH03_JH05_data_phyloseq_bri_3_rare_tayport_2 <- prune_taxa(taxa_sums(JH03_JH05_data_phyloseq_bri_3_rare_tayport) > 0, JH03_JH05_data_phyloseq_bri_3_rare_tayport) 
+#Quarryfield soil
+JH03_JH05_data_phyloseq_bri_3_rare_quarryfield_2 <- prune_taxa(taxa_sums(JH03_JH05_data_phyloseq_bri_3_rare_quarryfield) > 0, JH03_JH05_data_phyloseq_bri_3_rare_quarryfield) 
+
+
+#####Tayport#####
+#extract count data 
+Tayport_counts_rare <- otu_table(JH03_JH05_data_phyloseq_bri_3_rare_tayport_2)
+TayportCountData = as.data.frame(Tayport_counts_rare)
+colnames(Tayport_counts_rare)
+
+#the design file containing sample information
+TayportColData = design[colnames(Tayport_counts_rare), ]
+rownames(TayportColData)
+
+#construct a DESeq dataset combining count data and sample information
+Tayport_cds <- DESeqDataSetFromMatrix(countData = TayportCountData, colData = TayportColData, design = ~ Description)
+
+#execute the differential count analysis with the function DESeq 
+Tayport_cds_test <- DESeq(Tayport_cds, fitType="local", betaPrior = FALSE) 
+
+
+#######################################################
+# 1. Compare rhizosphere samples with unplanted soils #
+#######################################################
+
+
+#Compare OTUs between bulk soil and rhizosphere samples of different genotypes
+#here I'm comparing bulk soil vs. individual treatments.
+#What I should do is to compare Bowman vs. individual treatments.
+Tayport_BR_Bowman <- results(Tayport_cds_test,contrast = c("Description", "TayportSoilB", "TayportBowmanR"))
+Tayport_BR_BW033 <- results(Tayport_cds_test,contrast = c("Description", "TayportSoilB", "TayportBW033R"))
+Tayport_BR_BW312 <- results(Tayport_cds_test,contrast = c("Description", "TayportSoilB", "TayportBW312R"))
+Tayport_BR_BW865 <- results(Tayport_cds_test,contrast = c("Description", "TayportSoilB", "TayportBW865R"))
+
+
+#filter previous list toextract significantly enriched OTUs at FDR < 0.05
+#Tayport Soil - comparison between WT and BRI1 mutants
+Tayport_BR_Bowman_FDR_005 <- Tayport_BR_Bowman[(rownames(Tayport_BR_Bowman)[which(Tayport_BR_Bowman$padj <0.05)]), ]
+Tayport_BR_BW033_FDR_005 <- Tayport_BR_BW033[(rownames(Tayport_BR_BW033)[which(Tayport_BR_BW033$padj <0.05)]), ]
+Tayport_BR_BW312_FDR_005 <- Tayport_BR_BW312[(rownames(Tayport_BR_BW312)[which(Tayport_BR_BW312$padj <0.05)]), ]
+Tayport_BR_BW865_FDR_005 <- Tayport_BR_BW865[(rownames(Tayport_BR_BW865)[which(Tayport_BR_BW865$padj <0.05)]), ]
+
+
+#Tayport soil, comparison between Bulk soil and Bowman
+#what is enriched in Bulk soil + extract taxonomy information
+Tayport_BR_Bowman_enriched_Soil <- Tayport_BR_Bowman_FDR_005[(rownames(Tayport_BR_Bowman_FDR_005)[which(Tayport_BR_Bowman_FDR_005$log2FoldChange > 0)]), ]
+dat_tax_noPlants[rownames(Tayport_BR_Bowman_enriched_Soil), ]
+length(rownames((Tayport_BR_Bowman_enriched_Soil)))
+count(JH03_JH05_taxa_ordered[rownames(Tayport_BR_Bowman_enriched_Soil), ], "Family")
+
+#What is enriched in Bowman + extract taxonomy information
+Tayport_BR_Bowman_enriched_Bowman <- Tayport_BR_Bowman_FDR_005[(rownames(Tayport_BR_Bowman_FDR_005)[which(Tayport_BR_Bowman_FDR_005$log2FoldChange < 0)]), ]
+dat_tax_noPlants[rownames(Tayport_BR_Bowman_enriched_Bowman), ]
+length(rownames((Tayport_BR_Bowman_enriched_Bowman)))
+count(JH03_JH05_taxa_ordered[rownames(Tayport_BR_Bowman_enriched_Bowman), ], "Family")
+#Far more families enriched in bowman as in bulk soil!
+#286 enriched taxa in total, 223 enriched in bowman rhizosphere - 78%
+# The exact numbers depend on which seed is used in rarefaction, but the ratios of enriched taxa in the rhizosphere compared to
+# the amount of overall enriched taxa per genotype are approximately the same.
+
+
+#Tayport soil, comparison between Bulk soil and BW033
+#what is enriched in Bulk soil + extract taxonomy information
+Tayport_BR_BW033_enriched_Soil <- Tayport_BR_BW033_FDR_005[(rownames(Tayport_BR_BW033_FDR_005)[which(Tayport_BR_BW033_FDR_005$log2FoldChange > 0)]), ]
+dat_tax_noPlants[rownames(Tayport_BR_BW033_enriched_Soil), ]
+length(rownames((Tayport_BR_BW033_enriched_Soil)))
+count(JH03_JH05_taxa_ordered[rownames(Tayport_BR_BW033_enriched_Soil), ], "Family")
+
+#What is enriched in BW033 + extract taxonomy information
+Tayport_BR_BW033_enriched_BW033 <- Tayport_BR_BW033_FDR_005[(rownames(Tayport_BR_BW033_FDR_005)[which(Tayport_BR_BW033_FDR_005$log2FoldChange < 0)]), ]
+dat_tax_noPlants[rownames(Tayport_BR_BW033_enriched_BW033), ]
+length(rownames((Tayport_BR_BW033_enriched_BW033)))
+count(JH03_JH05_taxa_ordered[rownames(Tayport_BR_BW033_enriched_BW033), ], "Family")
+#Again, far more enriched in BW033 planted soil. This plant has a mutation in the putative interaction site between BRI1 and BAK1.
+#Hence, more BAK1 should be recruited to immune defense pathways. As a result I would expect a higher 'awareness' of MAMPs,
+#and hence immune responses are triggered more easily. I expect enrichment due to the presence of the plant, but I expect
+#less enrichment due to the more highly engaged immune defense (true, less enrichment as in bowman!). 
+#At the same time, I expect a shorter phenotype as Brassinolide induced growth must be hampered (this is a dwarf phenotype).
+
+
+#Tayport soil, comparison between Bulk soil and BW312
+#what is enriched in Bulk soil + extract taxonomy information
+Tayport_BR_BW312_enriched_Soil <- Tayport_BR_BW312_FDR_005[(rownames(Tayport_BR_BW312_FDR_005)[which(Tayport_BR_BW312_FDR_005$log2FoldChange > 0)]), ]
+dat_tax_noPlants[rownames(Tayport_BR_BW312_enriched_Soil), ]
+length(rownames((Tayport_BR_BW312_enriched_Soil)))
+count(JH03_JH05_taxa_ordered[rownames(Tayport_BR_BW312_enriched_Soil), ], "Family")
+
+#What is enriched in BW312 + extract taxonomy information
+Tayport_BR_BW312_enriched_BW312 <- Tayport_BR_BW312_FDR_005[(rownames(Tayport_BR_BW312_FDR_005)[which(Tayport_BR_BW312_FDR_005$log2FoldChange < 0)]), ]
+dat_tax_noPlants[rownames(Tayport_BR_BW312_enriched_BW312), ]
+length(rownames((Tayport_BR_BW312_enriched_BW312)))
+count(JH03_JH05_taxa_ordered[rownames(Tayport_BR_BW312_enriched_BW312), ], "Family")
+#Same conclusion as with BW033, even though with BW312 being the 'key mutation' in the BAK1 interaction site, I would have expected
+#even less of an enrichment here. However (with the current rarefaction-seed), there are a total of 301 enriched taxa in BW312
+#(232 of which enriched in BW312 ~ 77%) but only 234 in BW033 (178 of which enriched in BW033 ~ 76%). The ration is about the same. 
+
+
+#Tayport soil, comparison between Bulk soil and BW865
+#what is enriched in Bulk soil + extract taxonomy information
+Tayport_BR_BW865_enriched_Soil <- Tayport_BR_BW865_FDR_005[(rownames(Tayport_BR_BW865_FDR_005)[which(Tayport_BR_BW865_FDR_005$log2FoldChange > 0)]), ]
+dat_tax_noPlants[rownames(Tayport_BR_BW865_enriched_Soil), ]
+length(rownames((Tayport_BR_BW865_enriched_Soil)))
+count(JH03_JH05_taxa_ordered[rownames(Tayport_BR_BW865_enriched_Soil), ], "Family")
+
+#What is enriched in BW865 + extract taxonomy information
+Tayport_BR_BW865_enriched_BW865 <- Tayport_BR_BW865_FDR_005[(rownames(Tayport_BR_BW865_FDR_005)[which(Tayport_BR_BW865_FDR_005$log2FoldChange < 0)]), ]
+dat_tax_noPlants[rownames(Tayport_BR_BW865_enriched_BW865), ]
+length(rownames((Tayport_BR_BW865_enriched_BW865)))
+count(JH03_JH05_taxa_ordered[rownames(Tayport_BR_BW865_enriched_BW865), ], "Family")
+# This was the dwarf control, I would expect this to resemble bowman more closely. However, this phenotype was annotated as a
+#'spontaneous' mutation, hence it could have an effect on the rhizosphere in some unknown way. 235 enriched taxa in total, 182
+#enriched in BW865 - 77.5%.
+
+
+
+
+#In conclusion so far: The presence of the plant does certainly have an effect. Comparing the numbers between taxa that are enriched
+#in either environment with the numbers of taxa enriched only in the rhizosphere leads to a constant percentage of ~77-78%
+#This suggests a rhizosphere effect, but no marked effect of either of the genotypes.
+#It would be interesting to see if there are any families that are consistently enriched/depleted in the rhizosphere of mutants
+#as compared to the rhizosphere of bowman.
+
+
+#visualise with Venn diagram
+#Area 1
+Area1_BR_T <- rownames(Tayport_BR_Bowman_enriched_Bowman)
+length(Area1_BR_T)
+#Area 2
+Area2_BR_T <- rownames(Tayport_BR_BW033_enriched_BW033)
+length(Area2_BR_T)
+#Area 3
+Area3_BR_T <- rownames(Tayport_BR_BW312_enriched_BW312)
+length(Area3_BR_T)
+##Area 4
+Area4_BR_T <- rownames(Tayport_BR_BW865_enriched_BW865)
+length(Area4_BR_T)
+#intersection
+#Area 12
+Area12_BR_T <- intersect(Area1_BR_T, Area2_BR_T)
+length(Area12_BR_T)
+#Area 13
+Area13_BR_T <- intersect(Area1_BR_T, Area3_BR_T)
+length(Area13_BR_T)
+##Area 14
+Area14_BR_T <- intersect(Area1_BR_T, Area4_BR_T)
+length(Area14_BR_T)
+#Area 23
+Area23_BR_T <- intersect(Area2_BR_T, Area3_BR_T)
+length(Area23_BR_T)
+##Area 24
+Area24_BR_T <- intersect(Area2_BR_T, Area4_BR_T)
+length(Area24_BR_T)
+##Area 34
+Area34_BR_T <- intersect(Area3_BR_T, Area4_BR_T)
+length(Area34_BR_T)
+#Area 123
+Area123_BR_T <- intersect(Area3_BR_T, Area12_BR_T)
+length(Area123_BR_T)
+##Area 124
+Area124_BR_T <- intersect(Area4_BR_T, Area12_BR_T)
+length(Area124_BR_T)
+##Area 134
+Area134_BR_T <- intersect(Area4_BR_T, Area13_BR_T)
+length(Area134_BR_T)
+##Area 234
+Area234_BR_T <- intersect(Area4_BR_T, Area23_BR_T)
+length(Area234_BR_T)
+##Area 1234
+Area1234_BR_T <- intersect(Area4_BR_T, Area123_BR_T)
+length(Area1234_BR_T)
+
+dev.off()
+draw.quad.venn(length(Area1_BR_T), length(Area2_BR_T), length(Area3_BR_T), length(Area4_BR_T), length(Area12_BR_T), length(Area13_BR_T), length(Area14_BR_T), length(Area23_BR_T), length(Area24_BR_T), length(Area34_BR_T), length(Area123_BR_T), length(Area124_BR_T), length(Area134_BR_T), length(Area234_BR_T), length(Area1234_BR_T),
+               category = c("Bowman", "BW033", "BW312", "BW865"), lty = "blank",
+               fill = c("cornflowerblue", "cadetblue", "cyan2", "blue"))
+
+
+
+#Unique taxa
+uniquetaxa_BowmanvsSoilT <- count(JH03_JH05_taxa_ordered[setdiff(setdiff(setdiff(Area1_BR_T, Area4_BR_T), Area3_BR_T), Area2_BR_T), ], "Family")  
+sum(uniquetaxa_BowmanvsSoilT$freq)
+#write.table(uniquetaxa_BowmanvsSoilT, file="uniquetaxa_BowmanvsSoilT.txt", sep="\t")
+
+uniquetaxa_BW033vsSoilT <- count(JH03_JH05_taxa_ordered[setdiff(setdiff(setdiff(Area2_BR_T, Area3_BR_T), Area4_BR_T), Area1_BR_T), ], "Family")
+sum(uniquetaxa_BW033vsSoilT$freq)
+#write.table(uniquetaxa_BW033vsSoilT, file="uniquetaxa_BW033vsSoilT.txt", sep="\t")
+
+uniquetaxa_BW312vsSoilT <- count(JH03_JH05_taxa_ordered[setdiff(setdiff(setdiff(Area3_BR_T, Area1_BR_T), Area4_BR_T), Area2_BR_T), ], "Family")
+sum(uniquetaxa_BW312vsSoilT$freq)
+#write.table(uniquetaxa_BW312vsSoilT, file="uniquetaxa_BW312vsSoilT.txt", sep="\t")
+
+uniquetaxa_BW865vsSoilT <- count(JH03_JH05_taxa_ordered[setdiff(setdiff(setdiff(Area4_BR_T, Area2_BR_T), Area3_BR_T), Area1_BR_T), ], "Family")
+sum(uniquetaxa_BW865vsSoilT$freq)
+#write.table(uniquetaxa_BW865vsSoilT, file="uniquetaxa_BW865vsSoilT.txt", sep="\t")
+
+
+######################################################
+# 2. Compare Bowman rhizosphere samples with mutants #
+######################################################
+
+
+
+#Compare individual mutants vs. bowman
+Tayport_Bowman_033 <- results(Tayport_cds_test,contrast = c("Description", "TayportBowmanR", "TayportBW033R"))
+Tayport_Bowman_312 <- results(Tayport_cds_test,contrast = c("Description", "TayportBowmanR", "TayportBW312R"))
+Tayport_Bowman_865 <- results(Tayport_cds_test,contrast = c("Description", "TayportBowmanR", "TayportBW865R"))
+
+
+#inspect a result file
+Tayport_Bowman_033
+Tayport_Bowman_312
+Tayport_Bowman_865
+#mcols(Tayport_WT_033, use.names=TRUE)
+
+
+#filter previous list to extract significantly enriched OTUs at FDR < 0.05
+#Tayport Soil - comparison between WT and BRI1 mutants
+Tayport_Bowman_033_FDR_005 <- Tayport_Bowman_033[(rownames(Tayport_Bowman_033)[which(Tayport_Bowman_033$padj <0.05)]), ]
+Tayport_Bowman_312_FDR_005 <- Tayport_Bowman_312[(rownames(Tayport_Bowman_312)[which(Tayport_Bowman_312$padj <0.05)]), ]
+Tayport_Bowman_865_FDR_005 <- Tayport_Bowman_865[(rownames(Tayport_Bowman_865)[which(Tayport_Bowman_865$padj <0.05)]), ]
+
+#previous code - remove once done
+#filter previous list toextract significantly enriched OTUs at FDR < 0.05
+#Tayport Bulk soil. Comparison between mock treatment and flg treatments
+#Tayport_BR_Mock_FDR_005 <- Tayport_BR_Mock[(rownames(Tayport_BR_Mock)[which(Tayport_BR_Mock$padj <0.05)]), ]
+#Tayport_BR_Psy_FDR_005 <- Tayport_BR_Psy[(rownames(Tayport_BR_Psy)[which(Tayport_BR_Psy$padj <0.05)]), ]
+#Tayport_BR_Agro_FDR_005 <- Tayport_BR_Agro[(rownames(Tayport_BR_Agro)[which(Tayport_BR_Agro$padj <0.05)]), ]
+#These results simply state a differential regulation, not an up- or down-regulation.
+#For up/down regulation see code below
+
+
+#Tayport soil, comparison Bowman and BW033
+#what is enriched in Bowman + extract taxonomy information
+Tayport_Bowman_033_enriched_Bowman <- Tayport_Bowman_033_FDR_005[(rownames(Tayport_Bowman_033_FDR_005)[which(Tayport_Bowman_033_FDR_005$log2FoldChange > 0)]), ]
+dat_tax_noPlants[rownames(Tayport_Bowman_033_enriched_Bowman), ]
+length(rownames((Tayport_Bowman_033_enriched_Bowman)))
+count(JH03_JH05_taxa_ordered[rownames(Tayport_Bowman_033_enriched_Bowman), ], "Family")
+
+#What is enriched in BW033 + extract taxonomy information
+Tayport_Bowman_033_enriched_033 <- Tayport_Bowman_033_FDR_005[(rownames(Tayport_Bowman_033_FDR_005)[which(Tayport_Bowman_033_FDR_005$log2FoldChange < 0)]), ]
+dat_tax_noPlants[rownames(Tayport_Bowman_033_enriched_033), ]
+length(rownames((Tayport_Bowman_033_enriched_033)))
+count(JH03_JH05_taxa_ordered[rownames(Tayport_Bowman_033_enriched_033), ], "Family")
+#Here, all taxa are enriched in Bowman vs BW033, suggesting that Bowman retains more of the identified families in comparison to the mutant.
+# This is in line with the hypothesis that suggests that BW033 has a hyperactivated immune defence.
+#The same is expected for BW033, but not for BW865, unless BW865 modifies the microbiota in an unknown way.
+
+
+#Tayport soil, comparison Bowman and BW312
+#what is enriched in Bowman + extract taxonomy information
+Tayport_Bowman_312_enriched_Bowman <- Tayport_Bowman_312_FDR_005[(rownames(Tayport_Bowman_312_FDR_005)[which(Tayport_Bowman_312_FDR_005$log2FoldChange > 0)]), ]
+dat_tax_noPlants[rownames(Tayport_Bowman_312_enriched_Bowman), ]
+length(rownames((Tayport_Bowman_312_enriched_Bowman)))
+count(JH03_JH05_taxa_ordered[rownames(Tayport_Bowman_312_enriched_Bowman), ], "Family")
+
+#What is enriched in BW312 + extract taxonomy information
+Tayport_Bowman_312_enriched_312 <- Tayport_Bowman_312_FDR_005[(rownames(Tayport_Bowman_312_FDR_005)[which(Tayport_Bowman_312_FDR_005$log2FoldChange < 0)]), ]
+dat_tax_noPlants[rownames(Tayport_Bowman_312_enriched_312), ]
+length(rownames((Tayport_Bowman_312_enriched_312)))
+count(JH03_JH05_taxa_ordered[rownames(Tayport_Bowman_312_enriched_312), ], "Family")
+# All enriched in Bowman are Pseudomonadaceae. 1 member of the hyphomicrobiaceae familiy is enriched in BW312
+
+
+#Tayport soil, comparison Bowman and BW865
+#what is enriched in Bowman + extract taxonomy information
+Tayport_Bowman_865_enriched_Bowman <- Tayport_Bowman_865_FDR_005[(rownames(Tayport_Bowman_865_FDR_005)[which(Tayport_Bowman_865_FDR_005$log2FoldChange > 0)]), ]
+dat_tax_noPlants[rownames(Tayport_Bowman_865_enriched_Bowman), ]
+length(rownames((Tayport_Bowman_865_enriched_Bowman)))
+count(JH03_JH05_taxa_ordered[rownames(Tayport_Bowman_865_enriched_Bowman), ], "Family")
+
+#What is enriched in BW865 + extract taxonomy information
+Tayport_Bowman_865_enriched_865 <- Tayport_Bowman_865_FDR_005[(rownames(Tayport_Bowman_865_FDR_005)[which(Tayport_Bowman_865_FDR_005$log2FoldChange < 0)]), ]
+dat_tax_noPlants[rownames(Tayport_Bowman_865_enriched_865), ]
+length(rownames((Tayport_Bowman_865_enriched_865)))
+count(JH03_JH05_taxa_ordered[rownames(Tayport_Bowman_865_enriched_865), ], "Family")
+#All are enriched in bowman, including again 4 pseudomonadaceae. This suggests that either BW865 shapes the rhizosphere microbiome in the same way,
+# but by an unknown mechanisms, or that this is not a biological effect but a technical artefact.
+
+
+#visualise with Venn diagram
+#Area 1
+Area1_WT_T <- rownames(Tayport_Bowman_033_enriched_033)
+length(Area1_WT_T)
+#Area 2
+Area2_WT_T <- rownames(Tayport_Bowman_312_enriched_312)
+length(Area2_WT_T)
+#Area 3
+Area3_WT_T <- rownames(Tayport_Bowman_865_enriched_865)
+length(Area3_WT_T)
+#intersection
+#Area 12
+Area12_WT_T <- intersect(Area1_WT_T, Area2_WT_T)
+length(Area12_WT_T)
+#Area 13
+Area13_WT_T <- intersect(Area1_WT_T, Area3_WT_T)
+length(Area13_WT_T)
+#Area 23
+Area23_WT_T <- intersect(Area2_WT_T, Area3_WT_T)
+length(Area23_WT_T)
+#Area 123
+Area123_WT_T <- intersect(Area3_WT_T, Area12_WT_T)
+length(Area123_WT_T)
+
+dev.off()
+draw.triple.venn(area1 = length(Area1_WT_T), area2 = length(Area2_WT_T), area3 = length(Area3_WT_T), n12 = length(Area12_WT_T), n23 = length(Area23_WT_T), n13 = length(Area13_WT_T), n123 = length(Area123_WT_T), 
+                 category = c("BW033", "BW312", "BW865"), lty = "blank", 
+                 fill = c("cornflowerblue", "cadetblue3", "cyan2"))
+
+
+#Unique taxa
+uniquetaxa_BW033vsBowmanT <- count(JH03_JH05_taxa_ordered[setdiff(setdiff(Area1_WT_T, Area3_WT_T), Area2_WT_T), ], "Family")  
+sum(uniquetaxa_BW033vsBowmanT$freq)
+#write.table(uniquetaxa_BW033vsBowmanT, file="uniquetaxa_BW033vsBowmanT.txt", sep="\t")
+
+uniquetaxa_BW312vsBowmanT <- count(JH03_JH05_taxa_ordered[setdiff(setdiff(Area2_WT_T, Area3_WT_T), Area1_WT_T), ], "Family")  
+sum(uniquetaxa_BW312vsBowmanT$freq)
+#write.table(uniquetaxa_BW312vsBowmanT, file="uniquetaxa_BW312vsBowmanT.txt", sep="\t")
+
+uniquetaxa_BW865vsBowmanT <- count(JH03_JH05_taxa_ordered[setdiff(setdiff(Area3_WT_T, Area2_WT_T), Area1_WT_T), ], "Family")  
+sum(uniquetaxa_BW865vsBowmanT$freq)
+#write.table(uniquetaxa_BW865vsBowmanT, file="uniquetaxa_BW865vsBowmanT.txt", sep="\t")
+
+
+
+
+
+#Intersect list of OTUs that are differentially enriched in the rhizosphere of each genotype
+#with OTUs that are differentially enriched in each genotype vs. bowman
+
+#what is enriched in BW033 vs. soil, then what is enriched in BW033 vs. bowman
+intersect_Tayport_BW033_FDR_005 <- intersect(rownames(Tayport_BR_BW033_enriched_BW033), rownames(Tayport_Bowman_033_enriched_033))
+#taxonomy
+count(JH03_JH05_taxa_ordered[intersect_Tayport_BW033_FDR_005, ], "Family")
+
+#what is enriched in BW312 vs. soil, then what is enriced in BW312 vs. bowman
+#which of the OTUs enriched in the rhizosphere of BW312 is different to bowman?
+intersect_Tayport_BW312_FDR_005 <- intersect(rownames(Tayport_BR_BW312_enriched_BW312), rownames(Tayport_Bowman_312_enriched_312))
+#taxonomy
+count(JH03_JH05_taxa_ordered[intersect_Tayport_BW312_FDR_005, ], "Family")
+
+#what is enriched in BW865 vs. soil, then what is enriced in BW865 vs. bowman
+intersect_Tayport_BW865_FDR_005 <- intersect(rownames(Tayport_BR_BW865_enriched_BW865), rownames(Tayport_Bowman_865_enriched_865))
+#taxonomy
+count(JH03_JH05_taxa_ordered[intersect_Tayport_BW865_FDR_005, ], "Family")
+
+
+#visualise rhizosphere effect corrected taxa with Venn diagram
+#Area 1
+Area1_WT_T_005 <- as.data.frame(intersect_Tayport_BW033_FDR_005)[,"intersect_Tayport_BW033_FDR_005"]
+length(Area1_WT_T_005)
+#Area 2
+Area2_WT_T_005 <- as.data.frame(intersect_Tayport_BW312_FDR_005)[,"intersect_Tayport_BW312_FDR_005"]
+length(Area2_WT_T_005)
+#Area 3
+Area3_WT_T_005 <- as.data.frame(intersect_Tayport_BW865_FDR_005)[,"intersect_Tayport_BW865_FDR_005"]
+length(Area3_WT_T_005)
+#intersection
+#Area 12
+Area12_WT_T_005 <- intersect(Area1_WT_T_005, Area2_WT_T_005)
+length(Area12_WT_T_005)
+#Area 13
+Area13_WT_T_005 <- intersect(Area1_WT_T_005, Area3_WT_T_005)
+length(Area13_WT_T_005)
+#Area 23
+Area23_WT_T_005 <- intersect(Area2_WT_T_005, Area3_WT_T_005)
+length(Area23_WT_T_005)
+#Area 123
+Area123_WT_T_005 <- intersect(Area3_WT_T_005, Area12_WT_T_005)
+length(Area123_WT_T_005)
+
+dev.off()
+draw.triple.venn(area1 = length(Area1_WT_T_005), area2 = length(Area2_WT_T_005), area3 = length(Area3_WT_T_005), n12 = length(Area12_WT_T_005), n23 = length(Area23_WT_T_005), n13 = length(Area13_WT_T_005), n123 = length(Area123_WT_T_005), 
+                 category = c("BW033", "BW312", "BW865"), lty = "blank", 
+                 fill = topo.colors(3))
+
+
+# rhizosphere corrected unique taxa
+uniquetaxa_rhizocorrected_BW033T <- count(JH03_JH05_taxa_ordered[setdiff(setdiff(Area1_WT_T_005, Area3_WT_T_005), Area2_WT_T_005), ], "Family")  
+sum(uniquetaxa_rhizocorrected_BW033T$freq)
+#write.table(uniquetaxa_rhizocorrected_BW033T, file="uniquetaxa_rhizocorrected_BW033T.txt", sep="\t")
+
+uniquetaxa_rhizocorrected_BW312T <- count(JH03_JH05_taxa_ordered[setdiff(setdiff(Area2_WT_T_005, Area3_WT_T_005), Area1_WT_T_005), ], "Family")  
+sum(uniquetaxa_rhizocorrected_BW312T$freq)
+#write.table(uniquetaxa_rhizocorrected_BW312T, file="uniquetaxa_rhizocorrected_BW312T.txt", sep="\t")
+
+uniquetaxa_rhizocorrected_BW865T <- count(JH03_JH05_taxa_ordered[setdiff(setdiff(Area3_WT_T_005, Area2_WT_T_005), Area1_WT_T_005), ], "Family")  
+sum(uniquetaxa_rhizocorrected_BW865T$freq)
+#write.table(uniquetaxa_rhizocorrected_BW865T, file="uniquetaxa_rhizocorrected_BW865T.txt", sep="\t")
+
+
+#extract full taxonomy
+uniquetaxonomy_rhizocorrected_BW312T <- JH03_JH05_taxa_ordered[setdiff(setdiff(Area2_WT_T_005, Area3_WT_T_005), Area1_WT_T_005), ]
+write.table(uniquetaxonomy_rhizocorrected_BW312T, file="uniquetaxonomy_rhizocorrected_BW312T.txt", sep="\t")
+
+
+
+
+#####Quarryfield#####
+#extract count data 
+Quarryfield_counts_rare <- otu_table(JH03_JH05_data_phyloseq_bri_3_rare_quarryfield_2)
+QuarryfieldCountData = as.data.frame(Quarryfield_counts_rare)
+colnames(Quarryfield_counts_rare)
+
+#the design file containing sample information
+QuarryfieldColData = design[colnames(Quarryfield_counts_rare), ]
+rownames(QuarryfieldColData)
+
+#construct a DESeq dataset combining count data and sample information
+Quarryfield_cds <- DESeqDataSetFromMatrix(countData = QuarryfieldCountData, colData = QuarryfieldColData, design = ~ Description)
+
+#execute the differential count analysis with the function DESeq 
+Quarryfield_cds_test <- DESeq(Quarryfield_cds, fitType="local", betaPrior = FALSE) 
+
+
+#######################################################
+# 1. Compare rhizosphere samples with unplanted soils #
+#######################################################
+
+
+#Compare OTUs between bulk soil and rhizosphere samples of different genotypes
+#here I'm comparing bulk soil vs. individual treatments, BR = Bulk/Rhizosphere
+Quarryfield_BR_Bowman <- results(Quarryfield_cds_test,contrast = c("Description", "QuarryfieldSoilB", "QuarryfieldBowmanR"))
+Quarryfield_BR_BW033 <- results(Quarryfield_cds_test,contrast = c("Description", "QuarryfieldSoilB", "QuarryfieldBW033R"))
+Quarryfield_BR_BW312 <- results(Quarryfield_cds_test,contrast = c("Description", "QuarryfieldSoilB", "QuarryfieldBW312R"))
+Quarryfield_BR_BW865 <- results(Quarryfield_cds_test,contrast = c("Description", "QuarryfieldSoilB", "QuarryfieldBW865R"))
+
+
+#filter previous list toextract significantly enriched OTUs at FDR < 0.05
+#Quarryfield Soil - comparison between WT and BRI1 mutants
+Quarryfield_BR_Bowman_FDR_005 <- Quarryfield_BR_Bowman[(rownames(Quarryfield_BR_Bowman)[which(Quarryfield_BR_Bowman$padj <0.05)]), ]
+Quarryfield_BR_BW033_FDR_005 <- Quarryfield_BR_BW033[(rownames(Quarryfield_BR_BW033)[which(Quarryfield_BR_BW033$padj <0.05)]), ]
+Quarryfield_BR_BW312_FDR_005 <- Quarryfield_BR_BW312[(rownames(Quarryfield_BR_BW312)[which(Quarryfield_BR_BW312$padj <0.05)]), ]
+Quarryfield_BR_BW865_FDR_005 <- Quarryfield_BR_BW865[(rownames(Quarryfield_BR_BW865)[which(Quarryfield_BR_BW865$padj <0.05)]), ]
+
+
+#Quarryfield soil, comparison between Bulk soil and Bowman
+#what is enriched in Bulk soil + extract taxonomy information
+Quarryfield_BR_Bowman_enriched_Soil <- Quarryfield_BR_Bowman_FDR_005[(rownames(Quarryfield_BR_Bowman_FDR_005)[which(Quarryfield_BR_Bowman_FDR_005$log2FoldChange > 0)]), ]
+dat_tax_noPlants[rownames(Quarryfield_BR_Bowman_enriched_Soil), ]
+length(rownames((Quarryfield_BR_Bowman_enriched_Soil)))
+count(JH03_JH05_taxa_ordered[rownames(Quarryfield_BR_Bowman_enriched_Soil), ], "Family")
+
+#What is enriched in Bowman + extract taxonomy information
+Quarryfield_BR_Bowman_enriched_Bowman <- Quarryfield_BR_Bowman_FDR_005[(rownames(Quarryfield_BR_Bowman_FDR_005)[which(Quarryfield_BR_Bowman_FDR_005$log2FoldChange < 0)]), ]
+dat_tax_noPlants[rownames(Quarryfield_BR_Bowman_enriched_Bowman), ]
+length(rownames((Quarryfield_BR_Bowman_enriched_Bowman)))
+count(JH03_JH05_taxa_ordered[rownames(Quarryfield_BR_Bowman_enriched_Bowman), ], "Family")
+#Far more families enriched in bowman as in bulk soil!
+#297 enriched taxa in total, 231 enriched in bowman rhizosphere - 78%
+# consistent in both soils
+# The exact numbers depend on which seed is used in rarefaction, but the ratios of enriched taxa in the rhizosphere compared to
+# the amount of overall enriched taxa per genotype are approximately the same.
+
+
+#Quarryfield soil, comparison between Bulk soil and BW033
+#what is enriched in Bulk soil + extract taxonomy information
+Quarryfield_BR_BW033_enriched_Soil <- Quarryfield_BR_BW033_FDR_005[(rownames(Quarryfield_BR_BW033_FDR_005)[which(Quarryfield_BR_BW033_FDR_005$log2FoldChange > 0)]), ]
+dat_tax_noPlants[rownames(Quarryfield_BR_BW033_enriched_Soil), ]
+length(rownames((Quarryfield_BR_BW033_enriched_Soil)))
+count(JH03_JH05_taxa_ordered[rownames(Quarryfield_BR_BW033_enriched_Soil), ], "Family")
+
+#What is enriched in BW033 + extract taxonomy information
+Quarryfield_BR_BW033_enriched_BW033 <- Quarryfield_BR_BW033_FDR_005[(rownames(Quarryfield_BR_BW033_FDR_005)[which(Quarryfield_BR_BW033_FDR_005$log2FoldChange < 0)]), ]
+dat_tax_noPlants[rownames(Quarryfield_BR_BW033_enriched_BW033), ]
+length(rownames((Quarryfield_BR_BW033_enriched_BW033)))
+count(JH03_JH05_taxa_ordered[rownames(Quarryfield_BR_BW033_enriched_BW033), ], "Family")
+#Again, far more enriched in BW033 planted soil. This plant has a mutation in the putative interaction site between BRI1 and BAK1.
+#Hence, more BAK1 should be recruited to immune defense pathways. As a result I would expect a higher 'awareness' of MAMPs,
+#and hence immune responses are triggered more easily. I expect enrichment due to the presence of the plant, but I expect
+#less enrichment due to the more highly engaged immune defense (true, less enrichment as in bowman!). 
+#At the same time, I expect a shorter phenotype as Brassinolide induced growth must be hampered (this is a dwarf phenotype).
+#217/273 - 79.5%
+
+#Quarryfield soil, comparison between Bulk soil and BW312
+#what is enriched in Bulk soil + extract taxonomy information
+Quarryfield_BR_BW312_enriched_Soil <- Quarryfield_BR_BW312_FDR_005[(rownames(Quarryfield_BR_BW312_FDR_005)[which(Quarryfield_BR_BW312_FDR_005$log2FoldChange > 0)]), ]
+dat_tax_noPlants[rownames(Quarryfield_BR_BW312_enriched_Soil), ]
+length(rownames((Quarryfield_BR_BW312_enriched_Soil)))
+count(JH03_JH05_taxa_ordered[rownames(Quarryfield_BR_BW312_enriched_Soil), ], "Family")
+
+#What is enriched in BW312 + extract taxonomy information
+Quarryfield_BR_BW312_enriched_BW312 <- Quarryfield_BR_BW312_FDR_005[(rownames(Quarryfield_BR_BW312_FDR_005)[which(Quarryfield_BR_BW312_FDR_005$log2FoldChange < 0)]), ]
+dat_tax_noPlants[rownames(Quarryfield_BR_BW312_enriched_BW312), ]
+length(rownames((Quarryfield_BR_BW312_enriched_BW312)))
+count(JH03_JH05_taxa_ordered[rownames(Quarryfield_BR_BW312_enriched_BW312), ], "Family")
+#Same conclusion as with BW033, even though with BW312 being the 'key mutation' in the BAK1 interaction site, I would have expected
+#even less of an enrichment here. However (with the current rarefaction-seed), there are a total of 317 enriched taxa in BW312
+#(247 of which enriched in BW312 ~ 80%) but only 234 in BW033 (178 of which enriched in BW033 ~ 76%). The ration is about the same. 
+
+
+#Quarryfield soil, comparison between Bulk soil and BW865
+#what is enriched in Bulk soil + extract taxonomy information
+Quarryfield_BR_BW865_enriched_Soil <- Quarryfield_BR_BW865_FDR_005[(rownames(Quarryfield_BR_BW865_FDR_005)[which(Quarryfield_BR_BW865_FDR_005$log2FoldChange > 0)]), ]
+dat_tax_noPlants[rownames(Quarryfield_BR_BW865_enriched_Soil), ]
+length(rownames((Quarryfield_BR_BW865_enriched_Soil)))
+count(JH03_JH05_taxa_ordered[rownames(Quarryfield_BR_BW865_enriched_Soil), ], "Family")
+
+#What is enriched in BW865 + extract taxonomy information
+Quarryfield_BR_BW865_enriched_BW865 <- Quarryfield_BR_BW865_FDR_005[(rownames(Quarryfield_BR_BW865_FDR_005)[which(Quarryfield_BR_BW865_FDR_005$log2FoldChange < 0)]), ]
+dat_tax_noPlants[rownames(Quarryfield_BR_BW865_enriched_BW865), ]
+length(rownames((Quarryfield_BR_BW865_enriched_BW865)))
+count(JH03_JH05_taxa_ordered[rownames(Quarryfield_BR_BW865_enriched_BW865), ], "Family")
+# This was the dwarf control, I would expect this to resemble bowman more closely. However, this phenotype was annotated as a
+#'spontaneous' mutation, hence it could have an effect on the rhizosphere in some unknown way. 284 enriched taxa in total, 226
+#enriched in BW865 - 79.5%.
+
+#All percentages except that for bowman are higher than before, i.e. all mutants seem to accrue more microbiota in quarryfield
+#as they do in bowman.
+
+
+
+#In conclusion so far: The presence of the plant does certainly have an effect. Comparing the numbers between taxa that are enriched
+#in either environment with the numbers of taxa enriched only in the rhizosphere leads to a constant percentage of ~77-78%
+#This suggests a rhizosphere effect, but no marked effect of either of the genotypes.
+#It would be interesting to see if there are any families that are consistently enriched/depleted in the rhizosphere of mutants
+#as compared to the rhizosphere of bowman.
+
+
+#visualise with Venn diagram
+#Area 1
+Area1_BR_Q <- rownames(Quarryfield_BR_Bowman_enriched_Bowman)
+length(Area1_BR_Q)
+#Area 2
+Area2_BR_Q <- rownames(Quarryfield_BR_BW033_enriched_BW033)
+length(Area2_BR_Q)
+#Area 3
+Area3_BR_Q <- rownames(Quarryfield_BR_BW312_enriched_BW312)
+length(Area3_BR_Q)
+##Area 4
+Area4_BR_Q <- rownames(Quarryfield_BR_BW865_enriched_BW865)
+length(Area4_BR_Q)
+#intersection
+#Area 12
+Area12_BR_Q <- intersect(Area1_BR_Q, Area2_BR_Q)
+length(Area12_BR_Q)
+#Area 13
+Area13_BR_Q <- intersect(Area1_BR_Q, Area3_BR_Q)
+length(Area13_BR_Q)
+##Area 14
+Area14_BR_Q <- intersect(Area1_BR_Q, Area4_BR_Q)
+length(Area14_BR_Q)
+#Area 23
+Area23_BR_Q <- intersect(Area2_BR_Q, Area3_BR_Q)
+length(Area23_BR_Q)
+##Area 24
+Area24_BR_Q <- intersect(Area2_BR_Q, Area4_BR_Q)
+length(Area24_BR_Q)
+##Area 34
+Area34_BR_Q <- intersect(Area3_BR_Q, Area4_BR_Q)
+length(Area34_BR_Q)
+#Area 123
+Area123_BR_Q <- intersect(Area3_BR_Q, Area12_BR_Q)
+length(Area123_BR_Q)
+##Area 124
+Area124_BR_Q <- intersect(Area4_BR_Q, Area12_BR_Q)
+length(Area124_BR_Q)
+##Area 134
+Area134_BR_Q <- intersect(Area4_BR_Q, Area13_BR_Q)
+length(Area134_BR_Q)
+##Area 234
+Area234_BR_Q <- intersect(Area4_BR_Q, Area23_BR_Q)
+length(Area234_BR_Q)
+##Area 1234
+Area1234_BR_Q <- intersect(Area4_BR_Q, Area123_BR_Q)
+length(Area1234_BR_Q)
+
+dev.off()
+draw.quad.venn(length(Area1_BR_Q), length(Area2_BR_Q), length(Area3_BR_Q), length(Area4_BR_Q), length(Area12_BR_Q), length(Area13_BR_Q), length(Area14_BR_Q), length(Area23_BR_Q), length(Area24_BR_Q), length(Area34_BR_Q), length(Area123_BR_Q), length(Area124_BR_Q), length(Area134_BR_Q), length(Area234_BR_Q), length(Area1234_BR_Q),
+               category = c("Bowman", "BW033", "BW312", "BW865"), lty = "blank",
+               fill = heat.colors(4))
+
+
+#Unique taxa
+uniquetaxa_BowmanvsSoilQ <- count(JH03_JH05_taxa_ordered[setdiff(setdiff(setdiff(Area1_BR_Q, Area4_BR_Q), Area3_BR_Q), Area2_BR_Q), ], "Family")  
+sum(uniquetaxa_BowmanvsSoilQ$freq)
+#write.table(uniquetaxa_BowmanvsSoilQ, file="uniquetaxa_BowmanvsSoilQ.txt", sep="\t")
+
+uniquetaxa_BW033vsSoilQ <- count(JH03_JH05_taxa_ordered[setdiff(setdiff(setdiff(Area2_BR_Q, Area3_BR_Q), Area4_BR_Q), Area1_BR_Q), ], "Family")
+sum(uniquetaxa_BW033vsSoilQ$freq)
+#write.table(uniquetaxa_BW033vsSoilQ, file="uniquetaxa_BW033vsSoilQ.txt", sep="\t")
+
+uniquetaxa_BW312vsSoilQ <- count(JH03_JH05_taxa_ordered[setdiff(setdiff(setdiff(Area3_BR_Q, Area1_BR_Q), Area4_BR_Q), Area2_BR_Q), ], "Family")
+sum(uniquetaxa_BW312vsSoilQ$freq)
+#write.table(uniquetaxa_BW312vsSoilQ, file="uniquetaxa_BW312vsSoilQ.txt", sep="\t")
+
+uniquetaxa_BW865vsSoilQ <- count(JH03_JH05_taxa_ordered[setdiff(setdiff(setdiff(Area4_BR_Q, Area2_BR_Q), Area3_BR_Q), Area1_BR_Q), ], "Family")
+sum(uniquetaxa_BW865vsSoilQ$freq)
+#write.table(uniquetaxa_BW865vsSoilQ, file="uniquetaxa_BW865vsSoilQ.txt", sep="\t")
+
+
+
+######################################################
+# 2. Compare Bowman rhizosphere samples with mutants #
+######################################################
+
+
+
+#Compare individual mutants vs. bowman
+Quarryfield_Bowman_033 <- results(Quarryfield_cds_test,contrast = c("Description", "QuarryfieldBowmanR", "QuarryfieldBW033R"))
+Quarryfield_Bowman_312 <- results(Quarryfield_cds_test,contrast = c("Description", "QuarryfieldBowmanR", "QuarryfieldBW312R"))
+Quarryfield_Bowman_865 <- results(Quarryfield_cds_test,contrast = c("Description", "QuarryfieldBowmanR", "QuarryfieldBW865R"))
+
+
+#filter previous list to extract significantly enriched OTUs at FDR < 0.05
+#Quarryfield Soil - comparison between WT and BRI1 mutants
+Quarryfield_Bowman_033_FDR_005 <- Quarryfield_Bowman_033[(rownames(Quarryfield_Bowman_033)[which(Quarryfield_Bowman_033$padj <0.05)]), ]
+Quarryfield_Bowman_312_FDR_005 <- Quarryfield_Bowman_312[(rownames(Quarryfield_Bowman_312)[which(Quarryfield_Bowman_312$padj <0.05)]), ]
+Quarryfield_Bowman_865_FDR_005 <- Quarryfield_Bowman_865[(rownames(Quarryfield_Bowman_865)[which(Quarryfield_Bowman_865$padj <0.05)]), ]
+
+
+#Quarryfield soil, comparison Bowman and BW033
+#what is enriched in Bowman + extract taxonomy information
+Quarryfield_Bowman_033_enriched_Bowman <- Quarryfield_Bowman_033_FDR_005[(rownames(Quarryfield_Bowman_033_FDR_005)[which(Quarryfield_Bowman_033_FDR_005$log2FoldChange > 0)]), ]
+dat_tax_noPlants[rownames(Quarryfield_Bowman_033_enriched_Bowman), ]
+length(rownames((Quarryfield_Bowman_033_enriched_Bowman)))
+count(JH03_JH05_taxa_ordered[rownames(Quarryfield_Bowman_033_enriched_Bowman), ], "Family")
+
+#What is enriched in BW033 + extract taxonomy information
+Quarryfield_Bowman_033_enriched_033 <- Quarryfield_Bowman_033_FDR_005[(rownames(Quarryfield_Bowman_033_FDR_005)[which(Quarryfield_Bowman_033_FDR_005$log2FoldChange < 0)]), ]
+dat_tax_noPlants[rownames(Quarryfield_Bowman_033_enriched_033), ]
+length(rownames((Quarryfield_Bowman_033_enriched_033)))
+count(JH03_JH05_taxa_ordered[rownames(Quarryfield_Bowman_033_enriched_033), ], "Family")
+#In Tayport soil all taxa are enriched in Bowman vs BW033, suggesting that Bowman retains more of the identified families in comparison to the mutant.
+# This is in line with the hypothesis that suggests that BW033 has a hyperactivated immune defence.
+#The same is expected for BW033, but not for BW865, unless BW865 modifies the microbiota in an unknown way.
+#Conversely, in quarryfield soil 1 unresolved family is enriched in BW033 as compared to bowman.
+#This is in line with the higher buffering capacity of the soil due to doubled organic matter content.
+#Even though admittedly 1 unresolved family is not much to go by.
+
+
+#Quarryfield soil, comparison Bowman and BW312
+#what is enriched in Bowman + extract taxonomy information
+Quarryfield_Bowman_312_enriched_Bowman <- Quarryfield_Bowman_312_FDR_005[(rownames(Quarryfield_Bowman_312_FDR_005)[which(Quarryfield_Bowman_312_FDR_005$log2FoldChange > 0)]), ]
+dat_tax_noPlants[rownames(Quarryfield_Bowman_312_enriched_Bowman), ]
+length(rownames((Quarryfield_Bowman_312_enriched_Bowman)))
+count(JH03_JH05_taxa_ordered[rownames(Quarryfield_Bowman_312_enriched_Bowman), ], "Family")
+
+#What is enriched in BW312 + extract taxonomy information
+Quarryfield_Bowman_312_enriched_312 <- Quarryfield_Bowman_312_FDR_005[(rownames(Quarryfield_Bowman_312_FDR_005)[which(Quarryfield_Bowman_312_FDR_005$log2FoldChange < 0)]), ]
+dat_tax_noPlants[rownames(Quarryfield_Bowman_312_enriched_312), ]
+length(rownames((Quarryfield_Bowman_312_enriched_312)))
+count(JH03_JH05_taxa_ordered[rownames(Quarryfield_Bowman_312_enriched_312), ], "Family")
+#In Tayport, all enriched in Bowman are Pseudomonadaceae. 1 member of the hyphomicrobiaceae familiy is enriched in BW312
+#In Quarryfield, 2 are enriched in BW312 (unresolved Sphingobacteriales and Pseudomonadaceae)
+#and 1 is enriched in Bowman (Sphingobacteraceae)
+
+#Quarryfield soil, comparison Bowman and BW865
+#what is enriched in Bowman + extract taxonomy information
+Quarryfield_Bowman_865_enriched_Bowman <- Quarryfield_Bowman_865_FDR_005[(rownames(Quarryfield_Bowman_865_FDR_005)[which(Quarryfield_Bowman_865_FDR_005$log2FoldChange > 0)]), ]
+dat_tax_noPlants[rownames(Quarryfield_Bowman_865_enriched_Bowman), ]
+length(rownames((Quarryfield_Bowman_865_enriched_Bowman)))
+count(JH03_JH05_taxa_ordered[rownames(Quarryfield_Bowman_865_enriched_Bowman), ], "Family")
+
+#What is enriched in BW865 + extract taxonomy information
+Quarryfield_Bowman_865_enriched_865 <- Quarryfield_Bowman_865_FDR_005[(rownames(Quarryfield_Bowman_865_FDR_005)[which(Quarryfield_Bowman_865_FDR_005$log2FoldChange < 0)]), ]
+dat_tax_noPlants[rownames(Quarryfield_Bowman_865_enriched_865), ]
+length(rownames((Quarryfield_Bowman_865_enriched_865)))
+count(JH03_JH05_taxa_ordered[rownames(Quarryfield_Bowman_865_enriched_865), ], "Family")
+#In Tayport, all 6 are enriched in bowman, including again 4 pseudomonadaceae. This suggests that either BW865 shapes the rhizosphere microbiome in the same way,
+# but by an unknown mechanisms, or that this is not a biological effect but a technical artefact.
+#In Quarryfield, an unresolved strain of the order sphingobaceriales is enriched in BW865, and 2 species of the
+#family of hyphomicrobiaceae and another of the family of rhizobiaceae are enriched.
+
+
+#visualise with Venn diagram
+#Area 1
+Area1_WT_Q <- rownames(Quarryfield_Bowman_033_enriched_033)
+length(Area1_WT_Q)
+#Area 2
+Area2_WT_Q <- rownames(Quarryfield_Bowman_312_enriched_312)
+length(Area2_WT_Q)
+#Area 3
+Area3_WT_Q <- rownames(Quarryfield_Bowman_865_enriched_865)
+length(Area3_WT_Q)
+#intersection
+#Area 12
+Area12_WT_Q <- intersect(Area1_WT_Q, Area2_WT_Q)
+length(Area12_WT_Q)
+#Area 13
+Area13_WT_Q <- intersect(Area1_WT_Q, Area3_WT_Q)
+length(Area13_WT_Q)
+#Area 23
+Area23_WT_Q <- intersect(Area2_WT_Q, Area3_WT_Q)
+length(Area23_WT_Q)
+#Area 123
+Area123_WT_Q <- intersect(Area3_WT_Q, Area12_WT_Q)
+length(Area123_WT_Q)
+
+dev.off()
+draw.triple.venn(area1 = length(Area1_WT_Q), area2 = length(Area2_WT_Q), area3 = length(Area3_WT_Q), n12 = length(Area12_WT_Q), n23 = length(Area23_WT_Q), n13 = length(Area13_WT_Q), n123 = length(Area123_WT_Q), 
+                 category = c("BW033", "BW312", "BW865"), lty = "blank", 
+                 fill = heat.colors(3))
+
+#Unique taxa
+uniquetaxa_BW033vsBowmanQ <- count(JH03_JH05_taxa_ordered[setdiff(setdiff(Area1_WT_Q, Area3_WT_Q), Area2_WT_Q), ], "Family")  
+sum(uniquetaxa_BW033vsBowmanQ$freq)
+#write.table(uniquetaxa_BW033vsBowmanQ, file="uniquetaxa_BW033vsBowmanQ.txt", sep="\t")
+
+uniquetaxa_BW312vsBowmanQ <- count(JH03_JH05_taxa_ordered[setdiff(setdiff(Area2_WT_Q, Area3_WT_Q), Area1_WT_Q), ], "Family")  
+sum(uniquetaxa_BW312vsBowmanQ$freq)
+#write.table(uniquetaxa_BW312vsBowmanQ, file="uniquetaxa_BW312vsBowmanQ.txt", sep="\t")
+
+uniquetaxa_BW865vsBowmanQ <- count(JH03_JH05_taxa_ordered[setdiff(setdiff(Area3_WT_Q, Area2_WT_Q), Area1_WT_Q), ], "Family")  
+sum(uniquetaxa_BW865vsBowmanQ$freq)
+#write.table(uniquetaxa_BW865vsBowmanQ, file="uniquetaxa_BW865vsBowmanQ.txt", sep="\t")
+
+
+
+#intersections:
+
+#what is enriched in BW033 vs. soil, then what is enriced in BW033 vs. bowman
+intersect_Quarryfield_BW033_FDR_005 <- intersect(rownames(Quarryfield_BR_BW033_enriched_BW033), rownames(Quarryfield_Bowman_033_enriched_033))
+#taxonomy
+count(JH03_JH05_taxa_ordered[intersect_Quarryfield_BW033_FDR_005, ], "Family")
+
+#what is enriched in BW312 vs. soil, then what is enriced in BW312 vs. bowman
+intersect_Quarryfield_BW312_FDR_005 <- intersect(rownames(Quarryfield_BR_BW312_enriched_BW312), rownames(Quarryfield_Bowman_312_enriched_312))
+#taxonomy
+count(JH03_JH05_taxa_ordered[intersect_Quarryfield_BW312_FDR_005, ], "Family")
+
+#what is enriched in BW865 vs. soil, then what is enriced in BW865 vs. bowman
+intersect_Quarryfield_BW865_FDR_005 <- intersect(rownames(Quarryfield_BR_BW865_enriched_BW865), rownames(Quarryfield_Bowman_865_enriched_865))
+#taxonomy
+count(JH03_JH05_taxa_ordered[intersect_Quarryfield_BW865_FDR_005, ], "Family")
+
+
+
+#visualise rhizosphere effect corrected taxa with Venn diagram
+#Area 1
+Area1_WT_Q_005 <- as.data.frame(intersect_Quarryfield_BW033_FDR_005)[,"intersect_Quarryfield_BW033_FDR_005"]
+length(Area1_WT_Q_005)
+#Area 2
+Area2_WT_Q_005 <- as.data.frame(intersect_Quarryfield_BW312_FDR_005)[,"intersect_Quarryfield_BW312_FDR_005"]
+length(Area2_WT_Q_005)
+#Area 3
+Area3_WT_Q_005 <- as.data.frame(intersect_Quarryfield_BW865_FDR_005)[,"intersect_Quarryfield_BW865_FDR_005"]
+length(Area3_WT_Q_005)
+#intersection
+#Area 12
+Area12_WT_Q_005 <- intersect(Area1_WT_Q_005, Area2_WT_Q_005)
+length(Area12_WT_Q_005)
+#Area 13
+Area13_WT_Q_005 <- intersect(Area1_WT_Q_005, Area3_WT_Q_005)
+length(Area13_WT_Q_005)
+#Area 23
+Area23_WT_Q_005 <- intersect(Area2_WT_Q_005, Area3_WT_Q_005)
+length(Area23_WT_Q_005)
+#Area 123
+Area123_WT_Q_005 <- intersect(Area3_WT_Q_005, Area12_WT_Q_005)
+length(Area123_WT_Q_005)
+
+dev.off()
+draw.triple.venn(area1 = length(Area1_WT_Q_005), area2 = length(Area2_WT_Q_005), area3 = length(Area3_WT_Q_005), n12 = length(Area12_WT_Q_005), n23 = length(Area23_WT_Q_005), n13 = length(Area13_WT_Q_005), n123 = length(Area123_WT_Q_005), 
+                 category = c("BW033", "BW312", "BW865"), lty = "blank", 
+                 fill = topo.colors(3))
+
+
+
+# rhizosphere corrected unique taxa
+uniquetaxa_rhizocorrected_BW033Q <- count(JH03_JH05_taxa_ordered[setdiff(setdiff(Area1_WT_Q_005, Area3_WT_Q_005), Area2_WT_Q_005), ], "Family")  
+sum(uniquetaxa_rhizocorrected_BW033Q$freq)
+#write.table(uniquetaxa_rhizocorrected_BW033Q, file="uniquetaxa_rhizocorrected_BW033Q.txt", sep="\t")
+
+uniquetaxa_rhizocorrected_BW312Q <- count(JH03_JH05_taxa_ordered[setdiff(setdiff(Area2_WT_Q_005, Area3_WT_Q_005), Area1_WT_Q_005), ], "Family")  
+sum(uniquetaxa_rhizocorrected_BW312Q$freq)
+#write.table(uniquetaxa_rhizocorrected_BW312Q, file="uniquetaxa_rhizocorrected_BW312Q.txt", sep="\t")
+
+uniquetaxa_rhizocorrected_BW865Q <- count(JH03_JH05_taxa_ordered[setdiff(setdiff(Area3_WT_Q_005, Area2_WT_Q_005), Area1_WT_Q_005), ], "Family")  
+sum(uniquetaxa_rhizocorrected_BW865Q$freq)
+#write.table(uniquetaxa_rhizocorrected_BW865Q, file="uniquetaxa_rhizocorrected_BW865Q.txt", sep="\t")
+
+
+#extract full taxonomy
+uniquetaxonomy_rhizocorrected_BW312Q <- JH03_JH05_taxa_ordered[setdiff(setdiff(Area2_WT_Q_005, Area3_WT_Q_005), Area1_WT_Q_005), ]
+write.table(unique_taxonomy_PsyT, file="uniquetaxonomy_rhizocorrected_BW312Q.txt", sep="\t")
+
+
+
+##################################################################################
+#                                     The end?                                   #
+##################################################################################
