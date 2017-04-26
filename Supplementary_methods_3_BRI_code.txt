@@ -1,15 +1,15 @@
 #############################################################
 #
-# Ref to the ARTICLE
+# Manuel Blank - MSci thesis supplementary information
+# BRI1 experiment data analysis
 # 
-# Manuel Blank, Pilar Morera Margarit & Davide Bulgarelli
+# 130015707
 # 
 # m.blank@dundee.ac.uk
 # 
-# d.bulgarelli@dundee.ac.uk
-# 
 #
 #############################################################
+
 
 ############################################################
 #useful tutorials
@@ -51,19 +51,11 @@ library("plyr")
 library("VennDiagram")
 library("grid")
 library("futile.logger")
-#from here on: requirements for ANCOM package (installed from zip file)
-#library("exactRankTests")
-#library("openxlsx")
-#library("DT")
-#library("coin")
-#library("ancom.R")
 
 
 
-#set the working directory (mind that your working directory has a different path)
-setwd("G:/Uni/MSci/Box Sync/Davide_lab_experiments/JH03_JH05_MB/JH03_JH05_R_analysis/BRI")
-#Davide cpu
-#setwd("C:/Users/DB42008/Box Sync/Davide_lab_experiments/JH03_JH05_MB/JH03_JH05_R_analysis/")
+#set the working directory (mind that your working directory has a different path on different stations)
+#setwd("path")
 
 #############################################################
 #import the count matrix and the desing file

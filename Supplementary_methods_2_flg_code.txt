@@ -1,20 +1,14 @@
 #############################################################
 #
-# Ref to the ARTICLE
+# Manuel Blank - MSci thesis supplementary information
+# flg22 experiment data analysis
 # 
-# Manuel Blank, Pilar Morera Margarit & Davide Bulgarelli
+# 130015707
 # 
 # m.blank@dundee.ac.uk
 # 
-# d.bulgarelli@dundee.ac.uk
-# 
 #
 #############################################################
-
-############################################################
-#useful tutorials
-#https://joey711.github.io/phyloseq/tutorials-index.html
-############################################################
 
 #############################################################
 # Clean-up the memory and start a new session
@@ -51,19 +45,11 @@ library("plyr")
 library("VennDiagram")
 library("grid")
 library("futile.logger")
-#from here on: requirements for ANCOM package (installed from zip file)
-#library("exactRankTests")
-#library("openxlsx")
-#library("DT")
-#library("coin")
-#library("ancom.R")
 
 
 
-#set the working directory (mind that your working directory has a different path)
-setwd("G:/Uni/MSci/Box Sync/Davide_lab_experiments/JH03_JH05_MB/JH03_JH05_R_analysis")
-#Davide cpu
-#setwd("C:/Users/DB42008/Box Sync/Davide_lab_experiments/JH03_JH05_MB/JH03_JH05_R_analysis/")
+#set the working directory (mind that your working directory has a different path on different stations)
+#setwd("path")
 
 #############################################################
 #import the count matrix and the desing file
@@ -1126,7 +1112,7 @@ write.table(unique_taxonomy_PsyT, file="unique_taxonomy_PsyT.txt", sep="\t")
 unique_taxonomy_agroT <- JH03_JH05_taxa_ordered[setdiff(setdiff(Area1T, Area12T), Area13T), ]
 write.table(unique_taxonomy_agroT, file="unique_taxonomy_agroT.txt", sep="\t")
 
-unique_taxonomy_mockT <- JH03_JH05_taxa_ordered[setdiff(setdiff(Area2T, Area12T), Area23T), ]
+unique_taxonomy_mockT <- JH03_JH05_taxa_ordered[setdiff(setdiff(Area3T, Area13T), Area23T), ]
 write.table(unique_taxonomy_mockT, file="unique_taxonomy_mockT.txt", sep="\t")
 
 
@@ -1270,7 +1256,7 @@ write.table(unique_taxonomy_PsyQ, file="unique_taxonomy_PsyQ.txt", sep="\t")
 unique_taxonomy_agroQ <- JH03_JH05_taxa_ordered[setdiff(setdiff(Area1Q, Area12Q), Area13Q), ]
 write.table(unique_taxonomy_agroQ, file="unique_taxonomy_agroQ.txt", sep="\t")
 
-unique_taxonomy_mockQ <- JH03_JH05_taxa_ordered[setdiff(setdiff(Area2Q, Area12Q), Area23Q), ]
+unique_taxonomy_mockQ <- JH03_JH05_taxa_ordered[setdiff(setdiff(Area3Q, Area13Q), Area23Q), ]
 write.table(unique_taxonomy_mockQ, file="unique_taxonomy_mockQ.txt", sep="\t")
 
 

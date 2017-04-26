@@ -1,5 +1,5 @@
 Quarryfield: Bowman vs. Soil							
-	Kingdom	Phylum	Class	Order	Family	Genus	Species
+OTU ID	Kingdom	Phylum	Class	Order	Family	Genus	Species
 1125638	k__Bacteria	 p__Proteobacteria	 c__Gammaproteobacteria	 o__Xanthomonadales	 f__Sinobacteraceae	 g__	 s__
 3055791	k__Bacteria	 p__Proteobacteria	 c__Gammaproteobacteria	 o__Xanthomonadales	 f__Xanthomonadaceae	 g__	 s__
 1119239	k__Bacteria	 p__Proteobacteria	 c__Gammaproteobacteria	 o__Legionellales	 f__Coxiellaceae	 g__Aquicella	 s__
