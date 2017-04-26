@@ -802,6 +802,24 @@ sum(uniquetaxa_BW865vsSoilT$freq)
 #write.table(uniquetaxa_BW865vsSoilT, file="uniquetaxa_BW865vsSoilT.txt", sep="\t")
 
 
+
+#Export full taxonomy information for higher resolution
+unique_taxonomy_BowmanvsSoilT <- JH03_JH05_taxa_ordered[setdiff(setdiff(setdiff(Area1_BR_T, Area4_BR_T), Area3_BR_T), Area2_BR_T), ]
+write.table(unique_taxonomy_BowmanvsSoilT, file="unique_taxonomy_BowmanvsSoilT.txt", sep="\t")
+
+unique_taxonomy_BW033vsSoilT <- JH03_JH05_taxa_ordered[setdiff(setdiff(setdiff(Area2_BR_T, Area3_BR_T), Area4_BR_T), Area1_BR_T), ]
+write.table(unique_taxonomy_BW033vsSoilT, file="unique_taxonomy_BW033vsSoilT.txt", sep="\t")
+
+unique_taxonomy_BW312vsSoilT <- JH03_JH05_taxa_ordered[setdiff(setdiff(setdiff(Area3_BR_T, Area1_BR_T), Area4_BR_T), Area2_BR_T), ]
+write.table(unique_taxonomy_BW312vsSoilT, file="unique_taxonomy_BW312vsSoilT.txt", sep="\t")
+
+unique_taxonomy_BW865vsSoilT <- JH03_JH05_taxa_ordered[setdiff(setdiff(setdiff(Area4_BR_T, Area2_BR_T), Area3_BR_T), Area1_BR_T), ]
+write.table(unique_taxonomy_BW865vsSoilT, file="unique_taxonomy_BW865vsSoilT.txt", sep="\t")
+
+
+
+
+
 ######################################################
 # 2. Compare Bowman rhizosphere samples with mutants #
 ######################################################
@@ -930,6 +948,16 @@ sum(uniquetaxa_BW865vsBowmanT$freq)
 
 
 
+#Export full taxonomy information for higher resolution
+unique_taxonomy_BW033vsBowmanT <- JH03_JH05_taxa_ordered[setdiff(setdiff(Area1_WT_T, Area3_WT_T), Area2_WT_T), ]
+write.table(unique_taxonomy_BW033vsBowmanT, file="unique_taxonomy_BW033vsBowmanT.txt", sep="\t")
+
+unique_taxonomy_BW312vsBowmanT <- JH03_JH05_taxa_ordered[setdiff(setdiff(Area2_WT_T, Area3_WT_T), Area1_WT_T), ]
+write.table(unique_taxonomy_BW312vsBowmanT, file="unique_taxonomy_BW312vsBowmanT.txt", sep="\t")
+
+unique_taxonomy_BW865vsBowmanT <- JH03_JH05_taxa_ordered[setdiff(setdiff(Area3_WT_T, Area2_WT_T), Area1_WT_T), ]
+write.table(unique_taxonomy_BW865vsBowmanT, file="unique_taxonomy_BW865vsBowmanT.txt", sep="\t")
+
 
 
 #Intersect list of OTUs that are differentially enriched in the rhizosphere of each genotype
@@ -997,8 +1025,15 @@ sum(uniquetaxa_rhizocorrected_BW865T$freq)
 
 
 #extract full taxonomy
+uniquetaxonomy_rhizocorrected_BW033T <- JH03_JH05_taxa_ordered[setdiff(setdiff(Area1_WT_T_005, Area3_WT_T_005), Area2_WT_T_005), ]
+write.table(uniquetaxonomy_rhizocorrected_BW033T, file="uniquetaxonomy_rhizocorrected_BW033T.txt", sep="\t")
+
 uniquetaxonomy_rhizocorrected_BW312T <- JH03_JH05_taxa_ordered[setdiff(setdiff(Area2_WT_T_005, Area3_WT_T_005), Area1_WT_T_005), ]
 write.table(uniquetaxonomy_rhizocorrected_BW312T, file="uniquetaxonomy_rhizocorrected_BW312T.txt", sep="\t")
+
+uniquetaxonomy_rhizocorrected_BW865T <- JH03_JH05_taxa_ordered[setdiff(setdiff(Area3_WT_T_005, Area2_WT_T_005), Area1_WT_T_005), ]
+write.table(uniquetaxonomy_rhizocorrected_BW865T, file="uniquetaxonomy_rhizocorrected_BW865T.txt", sep="\t")
+
 
 
 
@@ -1196,6 +1231,19 @@ sum(uniquetaxa_BW865vsSoilQ$freq)
 #write.table(uniquetaxa_BW865vsSoilQ, file="uniquetaxa_BW865vsSoilQ.txt", sep="\t")
 
 
+#extract unique taxonomy
+uniquetaxonomy_BowmanvsSoilQ <- JH03_JH05_taxa_ordered[setdiff(setdiff(setdiff(Area1_BR_Q, Area4_BR_Q), Area3_BR_Q), Area2_BR_Q), ]
+write.table(uniquetaxonomy_BowmanvsSoilQ, file="uniquetaxonomy_BowmanvsSoilQ.txt", sep="\t")
+
+uniquetaxonomy_BW033vsSoilQ <- JH03_JH05_taxa_ordered[setdiff(setdiff(setdiff(Area1_BR_Q, Area4_BR_Q), Area3_BR_Q), Area2_BR_Q), ]
+write.table(uniquetaxonomy_BW033vsSoilQ, file="uniquetaxonomy_BW033vsSoilQ.txt", sep="\t")
+
+uniquetaxonomy_BW312vsSoilQ <- JH03_JH05_taxa_ordered[setdiff(setdiff(setdiff(Area1_BR_Q, Area4_BR_Q), Area3_BR_Q), Area2_BR_Q), ]
+write.table(uniquetaxonomy_BW312vsSoilQ, file="uniquetaxonomy_BW312vsSoilQ.txt", sep="\t")
+
+uniquetaxonomy_BW865vsSoilQ <- JH03_JH05_taxa_ordered[setdiff(setdiff(setdiff(Area1_BR_Q, Area4_BR_Q), Area3_BR_Q), Area2_BR_Q), ]
+write.table(uniquetaxonomy_BW865vsSoilQ, file="uniquetaxonomy_BW865vsSoilQ.txt", sep="\t")
+
 
 ######################################################
 # 2. Compare Bowman rhizosphere samples with mutants #
@@ -1313,6 +1361,17 @@ sum(uniquetaxa_BW865vsBowmanQ$freq)
 #write.table(uniquetaxa_BW865vsBowmanQ, file="uniquetaxa_BW865vsBowmanQ.txt", sep="\t")
 
 
+#extract unique taxonomy
+uniquetaxonomy_BW033vsBowmanQ <- JH03_JH05_taxa_ordered[setdiff(setdiff(Area1_WT_Q, Area3_WT_Q), Area2_WT_Q), ]
+write.table(uniquetaxonomy_BW033vsBowmanQ, file="uniquetaxonomy_BW033vsBowmanQ.txt", sep="\t")
+
+uniquetaxonomy_BW0312vsBowmanQ <- JH03_JH05_taxa_ordered[setdiff(setdiff(Area2_WT_Q, Area3_WT_Q), Area1_WT_Q), ]
+write.table(uniquetaxonomy_BW0312vsBowmanQ, file="uniquetaxonomy_BW0312vsBowmanQ.txt", sep="\t")
+
+uniquetaxonomy_BW865vsBowmanQ <- JH03_JH05_taxa_ordered[setdiff(setdiff(Area3_WT_Q, Area2_WT_Q), Area1_WT_Q), ]
+write.table(uniquetaxonomy_BW865vsBowmanQ, file="uniquetaxonomy_BW865vsBowmanQ.txt", sep="\t")
+
+
 
 #intersections:
 
@@ -1379,8 +1438,14 @@ sum(uniquetaxa_rhizocorrected_BW865Q$freq)
 
 
 #extract full taxonomy
+uniquetaxonomy_rhizocorrected_BW033Q <- JH03_JH05_taxa_ordered[setdiff(setdiff(Area1_WT_Q_005, Area3_WT_Q_005), Area2_WT_Q_005), ]
+write.table(uniquetaxonomy_rhizocorrected_BW033Q, file="uniquetaxonomy_rhizocorrected_BW033Q.txt", sep="\t")
+
 uniquetaxonomy_rhizocorrected_BW312Q <- JH03_JH05_taxa_ordered[setdiff(setdiff(Area2_WT_Q_005, Area3_WT_Q_005), Area1_WT_Q_005), ]
-write.table(unique_taxonomy_PsyT, file="uniquetaxonomy_rhizocorrected_BW312Q.txt", sep="\t")
+write.table(uniquetaxonomy_rhizocorrected_BW312Q, file="uniquetaxonomy_rhizocorrected_BW312Q.txt", sep="\t")
+
+uniquetaxonomy_rhizocorrected_BW865Q <- JH03_JH05_taxa_ordered[setdiff(setdiff(Area3_WT_Q_005, Area2_WT_Q_005), Area1_WT_Q_005), ]
+write.table(uniquetaxonomy_rhizocorrected_BW865Q, file="uniquetaxonomy_rhizocorrected_BW865Q.txt", sep="\t")
 
 
 

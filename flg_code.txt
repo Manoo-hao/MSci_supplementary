@@ -1274,16 +1274,6 @@ unique_taxonomy_mockQ <- JH03_JH05_taxa_ordered[setdiff(setdiff(Area2Q, Area12Q)
 write.table(unique_taxonomy_mockQ, file="unique_taxonomy_mockQ.txt", sep="\t")
 
 
-
-#unique orders
-uniqueorder_psyQ <- count(JH03_JH05_taxa_ordered[setdiff(setdiff(Area2Q, Area12Q), Area23Q), ], "Order")
-sum(uniqueorder_psyQ$freq)
-write.table(uniqueorder_psyQ, file="uniqueorder_psyQ.txt", sep="\t")
-uniqueorder_agroQ <- count(JH03_JH05_taxa_ordered[setdiff(setdiff(Area1Q, Area12Q), Area13Q), ], "Order")
-sum(uniqueorder_agroQ$freq)
-write.table(uniqueorder_agroQ, file="uniqueorder_agroQ.txt", sep="\t")
-uniqueorder_mockQ <- count(JH03_JH05_taxa_ordered[setdiff(setdiff(Area3Q, Area13Q), Area23Q), ], "Order")
-sum(uniqueorder_mockQ$freq)
-write.table(uniqueorder_mockQ, file="uniqueorder_mockQ.txt", sep="\t")
-
-
+##################################################################################
+#                                     The end?                                   #
+##################################################################################
