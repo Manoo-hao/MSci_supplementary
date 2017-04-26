@@ -2,7 +2,7 @@
 #### Manuel Blank - 130015707
 
 This repository contains supplementary file towards my MSci thesis. Some 
-of the necessary supplementary information, e.g. the code, is to large 
+of the necessary supplementary information, e.g. the code, is too large 
 and unwieldy to 
 attach directly to the document, yet, I believe, necessary for 
 completeness of the thesis.
