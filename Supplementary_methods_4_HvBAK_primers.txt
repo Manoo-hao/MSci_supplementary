@@ -1,14 +1,56 @@
-Before this script, look tat HvBAK_annotation.txt for the genomic location. Use the annotation provided to extract the gDNA sequence,
-then use the annotation for the intron locations in order to extract them an compile the CDS in a way compatible with the Roche Assay design center
-to design primers compatible with hydrolysis probes.
+#Before this script, look tat HvBAK_annotation attached below for the genomic location. Use the annotation provided to extract the gDNA sequence,
+#then use the annotation for the intron locations in order to extract them an compile the CDS in a way compatible with the Roche Assay design center
+#to design intron-spanning primers compatible with hydrolysis probes.
+
+#Annotation from barlex suggests 6 exons of MLOC_19580.1, which is identical to HORVU7Hr1G068990.2 and is the suspected HvBAK ortholog.
+
+#morex_contig_1585493	mips	exon		45		444		.	+	.	gene_id "MLOC_19580"; transcript_id "MLOC_19580.1"; exon_number "1"; mLoc "XLOC_019580"; mId "TCONS_00035919"; oId "TCONS_00045498"; tss_id "TSS24930"; cluster_id "AK374641"; conf "HC"
+#morex_contig_1585493	mips	exon		548		619		.	+	.	gene_id "MLOC_19580"; transcript_id "MLOC_19580.1"; exon_number "2"; mLoc "XLOC_019580"; mId "TCONS_00035919"; oId "TCONS_00045498"; tss_id "TSS24930"; cluster_id "AK374641"; conf "HC"
+#morex_contig_1585493	mips	exon		735		847		.	+	.	gene_id "MLOC_19580"; transcript_id "MLOC_19580.1"; exon_number "3"; mLoc "XLOC_019580"; mId "TCONS_00035919"; oId "TCONS_00045498"; tss_id "TSS24930"; cluster_id "AK374641"; conf "HC"
+#morex_contig_1585493	mips	exon		1423	1557	.	+	.	gene_id "MLOC_19580"; transcript_id "MLOC_19580.1"; exon_number "4"; mLoc "XLOC_019580"; mId "TCONS_00035919"; oId "TCONS_00045498"; tss_id "TSS24930"; cluster_id "AK374641"; conf "HC"
+#morex_contig_1585493	mips	exon		2070	2406	.	+	.	gene_id "MLOC_19580"; transcript_id "MLOC_19580.1"; exon_number "6"; mLoc "XLOC_019580"; mId "TCONS_00035919"; oId "TCONS_00045498"; tss_id "TSS24930"; cluster_id "AK374641"; conf "HC"
+#morex_contig_1585493	mips	exon		1635	1976	.	+	.	gene_id "MLOC_19580"; transcript_id "MLOC_19580.1"; exon_number "5"; mLoc "XLOC_019580"; mId "TCONS_00035919"; oId "TCONS_00045498"; tss_id "TSS24930"; cluster_id "AK374641"; conf "HC"
+#
+#
+#Whole genomic sequences can currently be downloaded from http://www.mmnt.net/db/0/0/ftp.mips.embnet.org/plants/barley/public_data/sequences
+#For retrieving particular contigs, download, and access the folder the whole genome file is saved in, retrieve them, and write them to a new text file with the following command:
+#grep -A 1 "morex_contig_1585493" WGSMorex.fasta > MorexContig.txt
+#The file MorexContig.txt will then be generated in the same folder and as opposed to the original .fasta file can be opened without problems.
+#
+#from .gtf file of: barley_HighConf_genes_MIPS_30Jan14MorexContigIDs_Transcript_and_CDS_structure.
+#morex_contig_1585493	mips	transcript	45		2406	.	+	.	gene_id "MLOC_19580"; transcript_id "MLOC_19580.1"; mLoc "XLOC_019580"; mId "TCONS_00035919"; oId "TCONS_00045498"; tss_id "TSS24930"; cluster_id "AK374641"; conf "HC";
+#morex_contig_1585493	mips	exon		45		444		.	+	.	gene_id "MLOC_19580"; transcript_id "MLOC_19580.1"; exon_number "1";
+#morex_contig_1585493	mips	exon		548		619		.	+	.	gene_id "MLOC_19580"; transcript_id "MLOC_19580.1"; exon_number "2";
+#morex_contig_1585493	mips	exon		735		847		.	+	.	gene_id "MLOC_19580"; transcript_id "MLOC_19580.1"; exon_number "3";
+#morex_contig_1585493	mips	exon		1423	1557	.	+	.	gene_id "MLOC_19580"; transcript_id "MLOC_19580.1"; exon_number "4";
+#morex_contig_1585493	mips	exon		1635	1976	.	+	.	gene_id "MLOC_19580"; transcript_id "MLOC_19580.1"; exon_number "5";
+#morex_contig_1585493	mips	exon		2070	2406	.	+	.	gene_id "MLOC_19580"; transcript_id "MLOC_19580.1"; exon_number "6";
+#morex_contig_1585493	mips	CDS			1856	1976	.	+	.	gene_id "MLOC_19580"; transcript_id "MLOC_19580.1"; coding_exon_number "5";
+#morex_contig_1585493	mips	CDS			2070	2404	.	+	.	gene_id "MLOC_19580"; transcript_id "MLOC_19580.1"; coding_exon_number "6";
+#
+#	What's the difference between exon_number and coding_exon_number?
+#
+#Once extracted, run the R script attached below over it.
+#The collapsed results is exactly the same sequence as HORVU7Hr1G068990.2 as found when using BLAST.
 
 
+################################################
+#Code for extracting sequence
+################################################
+
+#Clear working environment
+rm(list=ls())
+dev.off()
+
+#Remember to set working directory as required!
+
+#The sequence is the gDNA sequence of HORVU7Hr1G068990.2 extracted from the genome.
 horvu <- c('CCCCCCCCCCCCCCCCCCCCTGAATTTTAGGGTGGGGACATCTCACCGTGATAAAAGTTGGCCCTAGATGTATTTTTTTTTCGACCTCCCATATAATATGAGTTTGAACTTCAAAGTTTACGTGTGAACAGACCATCACCTTTCTAACATACCCCTTTTTTTGATAATTTTTGAAAACTTCGTACGTCTCAACAGAGTTTCCATTGTGTTTGGTTTCCACCGGATTCTTTCTCGTTTCTTATGGCATCTATCTTCTTGTTAGGTTATCAAAGTAAAAACTTTGGTCAAGACTCAGTCACCGTGTTAATTTTCCCTATAACACCCTCCAAGTGATACTAATTTTGTGCATTTTCATTTTGTATATGAGCATAGGCGTCTTAACAACAACAGTCTTTCGGGCACAATTCCTAAATCGTTAACTGCTATTACTGCCCTCCAAGTTCTGTAAGTATTTGTCTCATGCTACATCCTTTTCTTCAGCATAACCTTTGGTATAAACTAGGAAGCGTCTAATTAGCAAAAGCTGAATATTTCTAATAAATTATAGGGATCTGTCAAACAATAAGTTGTCAGGAGAAGTTCCATCAACCGGTTCATTTTCATTATTCACCCCTATCAGGTAAAGCTAGCATGTTAGTTGATAAATTCAGTTTTCTTTGCCTTGACGCTGCTTCAATTCACACTTGTTTATTTTTGCAGTTATGCCAACAATTCACATTTGTTTATCATTTCAGTTTTGGCAACAACCCTGCCTTATGCGGTCCTGGGACTTCAAAACCTTGCCCCGGCGCTCCTCCCTTCTCCCCACCTCCTCCATATAACCCTCCTACTCCTGAGCAATCACCAGGTGATTTATGCATAATTACGGATTGACTATTAAGTTTATGTATACCTTCCATTGCAATAAGACCCATGCTGCAATGTTCTTTCATTGATGTAACATCCCAGCTGGGATGAGAGTACTCCAGAAACAAGTAAAATGTTCTAGAGGCTGGAGTGGATACTGCTGTCCATATTGAATGCATTTTTTGAACCTCCCTGTTTCCTACCTCTATGGTGGAGATTATCTGGTGCTTCGTGCTTCATGTGCTACCAACGTGCAGCATGATAAATCAGCAAGAAAACTTCTGTTTTTCAAACAATGATACAAGATCTCATGGCACACCTCCACCCCCTATCAGTGGCCTATCAGTGGAAAAATGCTCAAGTAGCGGCTACTGTCACTGCCTATGTGGCCTCCTAGTCCACTACTGATTGGATCTCTATTAGCTATTCATGTCCATGGTGTGACCTGTTTTCTGGCTTTGTCCTCTTATTTGTTGTCATCTTTTTCTGGAGCATTGATTGGCAATACACGATTTTATTTACCCCATGGATACCTAACAAGGTTTGGGATTGATGGTTTTGTTCTCATTTCTTCAGGAAGTAGTTCCTCTAGTACTGGAGCAATTGCTGGTGGAGTGGCTGCTGGTGCTGCCTTGCTATTTGCTATTCCTGCAATTGGTTTTGCATACTGGCGCCGCAGAAAACCGCAAGAGCATTTCTTTGATGTACCTGGTAAGCATTCAGCAGCAACCAGCATGAGGAAAATTACTTGCAAGATAACATTAGCCTGAAATTTCTATCTGGTGCAGCTGAGGAGGATCCAGAGGTCCATCTTGGTCAGCTTAAAAGATTTTCACTAAGAGAACTACAAGTTGCTACTGATACCTTCAGCAATAGGAACATTCTTGGAAGAGGTGGATTTGGCAAGGTCTACAAAGGAAGACTAACAGATGGTACACTAGTAGCCGTCAAGAGATTGAAAGAGGAGAGGACACCTGGTGGGGAGCTACAATTTCAAACAGAAGTTGAGATGATTAGTATGGCTGTACACAGAAACTTATTGCGTCTTCGTGGATTCTGTATGACACCAACAGAAAGGTTGCTTGTGTACCCATACATGGCTAACGGAAGTGTTGCATCACGTCTAAGAGGTACTTTTTTGCCTTGTTTCTCCACTTTTTCAGATTGTTGTAAGGCTTGATATAATGTAGAAAAGAATATATATAACTGGCTTATATTTTTAGAACGAGGGCCAGCTGAACCGCCACTGGATTGGCAAACGAGAAGAAGAATTGCATTGGGTTCTGCCAGGGGCCTCTCCTATTTACATGATCACTGTGATCCAAAGATCATCCATCGTGATGTGAAAGCTGCAAATATTTTATTAGATGAAGACTTTGAAGCTGTAGTGGGGGATTTTGGTTTGGCCAAACTAATGGATTACAAGGATACCCATGTAACAACTGCTGTGCGTGGAACAATTGGGCATATCGCACCAGAATATCTTTCAACAGGAAAATCCTCAGAGAAAACTGATGTATTCGGTTATGGAATTATGCTTTTGGAGCTTATTACAGGACAGCGTGCTTTTGATCTTGCTCGGCTTGCCAATGACGACGATGTCATGCTACTTGACTGGGTAATTAACTAGTGAGGTTTCCTTGGTTCAGATATAATGCTTTTATGTACTAACTTCTCACTTTAAATTGAGTATCCGTTTCCCTCCTTTTCCCG')
 horvu2 <- strsplit(horvu, split = NULL)
 horvu3 <- horvu2[[1]][] #1399 is length of CDS
 length(horvu3) #to check length of contig
 
-
+#extract exons
 exon1 <- horvu3[45:444]
 length(exon1) #length of exon in bp
 lexon1 <- paste(exon1, collapse = "") #output of sequence as '1 character' string
@@ -43,7 +85,7 @@ length(exon6)
 BAK1cDNA <- c(lexon1, lexon2, lexon3, lexon4, lexon5, lexon6)
 BAK1cDNA_collapsed <- paste(BAK1cDNA, collapse = "")
 
-
+#extract introns for intron length
 intron1 <- horvu3[445:547]
 length(intron1) #length of intron in bp
 lintron1 <- paste(intron1, collapse = "") #output of sequence as '1 character' string
@@ -71,12 +113,15 @@ length(intron4)
 length(intron5)
 
 
+#extract sequence with interspersed exon lengths in square brackets for compatibility with Roche assay design center.
 complete <- c(lexon1, '[', length(intron1), ']', lexon2, '[', length(intron2), ']', lexon3, '[', length(intron3), ']', lexon4, '[', length(intron4), ']', lexon5, '[', length(intron5), ']', lexon6)
 UPL_design <- paste(complete, collapse = "")
 UPL_design
 
+#Check lenght of gDNA
 seqlength <- length(exon1) + length(intron1) +length (exon2) + length(intron2) + length(exon3) + length(intron3) + length(exon4) + length(intron4) + length(exon5) + length(intron5) + length(exon6)
 seqlength
 
+#Check length of cDNA
 cdslength <- length(exon1) + length (exon2) + length(exon3) + length(exon4) + length(exon5) + length(exon6)
 cdslength
