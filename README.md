@@ -1,10 +1,13 @@
-This repository contains supplementary file towards my MSci thesis. Some 
-of the necessary supplementary information is to large and unwieldy to 
-attach directly to the document, yet, I believe, necessary for 
-completeness of the thesis. You may ignore it for marking purposes if 
-you wish.
+# MSci thesis supplementary files
+#### Manuel Blank - 130015707
 
-# Content
+This repository contains supplementary file towards my MSci thesis. Some 
+of the necessary supplementary information, e.g. the code, is to large 
+and unwieldy to 
+attach directly to the document, yet, I believe, necessary for 
+completeness of the thesis.
+
+## Content
 
 ### Supplementary methods 1:
 List of R-studio packages including versions that were used at the time 
@@ -16,7 +19,8 @@ and extract information about alpha-diversity, beta-diversity, and
 differential abundance.
 
 ### Supplementary methods 3:
-R-studio code used for analysing BRI1 mutant experimental data, and 
+R-studio code used for analysing <i>Hv</i>BRI1 mutant experimental data, 
+and 
 extract information about diversity-indices and differential abundance
 
 ### Supplementary methods 4:
