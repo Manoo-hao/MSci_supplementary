@@ -1,0 +1,82 @@
+Before this script, look tat HvBAK_annotation.txt for the genomic location. Use the annotation provided to extract the gDNA sequence,
+then use the annotation for the intron locations in order to extract them an compile the CDS in a way compatible with the Roche Assay design center
+to design primers compatible with hydrolysis probes.
+
+
+horvu <- c('CCCCCCCCCCCCCCCCCCCCTGAATTTTAGGGTGGGGACATCTCACCGTGATAAAAGTTGGCCCTAGATGTATTTTTTTTTCGACCTCCCATATAATATGAGTTTGAACTTCAAAGTTTACGTGTGAACAGACCATCACCTTTCTAACATACCCCTTTTTTTGATAATTTTTGAAAACTTCGTACGTCTCAACAGAGTTTCCATTGTGTTTGGTTTCCACCGGATTCTTTCTCGTTTCTTATGGCATCTATCTTCTTGTTAGGTTATCAAAGTAAAAACTTTGGTCAAGACTCAGTCACCGTGTTAATTTTCCCTATAACACCCTCCAAGTGATACTAATTTTGTGCATTTTCATTTTGTATATGAGCATAGGCGTCTTAACAACAACAGTCTTTCGGGCACAATTCCTAAATCGTTAACTGCTATTACTGCCCTCCAAGTTCTGTAAGTATTTGTCTCATGCTACATCCTTTTCTTCAGCATAACCTTTGGTATAAACTAGGAAGCGTCTAATTAGCAAAAGCTGAATATTTCTAATAAATTATAGGGATCTGTCAAACAATAAGTTGTCAGGAGAAGTTCCATCAACCGGTTCATTTTCATTATTCACCCCTATCAGGTAAAGCTAGCATGTTAGTTGATAAATTCAGTTTTCTTTGCCTTGACGCTGCTTCAATTCACACTTGTTTATTTTTGCAGTTATGCCAACAATTCACATTTGTTTATCATTTCAGTTTTGGCAACAACCCTGCCTTATGCGGTCCTGGGACTTCAAAACCTTGCCCCGGCGCTCCTCCCTTCTCCCCACCTCCTCCATATAACCCTCCTACTCCTGAGCAATCACCAGGTGATTTATGCATAATTACGGATTGACTATTAAGTTTATGTATACCTTCCATTGCAATAAGACCCATGCTGCAATGTTCTTTCATTGATGTAACATCCCAGCTGGGATGAGAGTACTCCAGAAACAAGTAAAATGTTCTAGAGGCTGGAGTGGATACTGCTGTCCATATTGAATGCATTTTTTGAACCTCCCTGTTTCCTACCTCTATGGTGGAGATTATCTGGTGCTTCGTGCTTCATGTGCTACCAACGTGCAGCATGATAAATCAGCAAGAAAACTTCTGTTTTTCAAACAATGATACAAGATCTCATGGCACACCTCCACCCCCTATCAGTGGCCTATCAGTGGAAAAATGCTCAAGTAGCGGCTACTGTCACTGCCTATGTGGCCTCCTAGTCCACTACTGATTGGATCTCTATTAGCTATTCATGTCCATGGTGTGACCTGTTTTCTGGCTTTGTCCTCTTATTTGTTGTCATCTTTTTCTGGAGCATTGATTGGCAATACACGATTTTATTTACCCCATGGATACCTAACAAGGTTTGGGATTGATGGTTTTGTTCTCATTTCTTCAGGAAGTAGTTCCTCTAGTACTGGAGCAATTGCTGGTGGAGTGGCTGCTGGTGCTGCCTTGCTATTTGCTATTCCTGCAATTGGTTTTGCATACTGGCGCCGCAGAAAACCGCAAGAGCATTTCTTTGATGTACCTGGTAAGCATTCAGCAGCAACCAGCATGAGGAAAATTACTTGCAAGATAACATTAGCCTGAAATTTCTATCTGGTGCAGCTGAGGAGGATCCAGAGGTCCATCTTGGTCAGCTTAAAAGATTTTCACTAAGAGAACTACAAGTTGCTACTGATACCTTCAGCAATAGGAACATTCTTGGAAGAGGTGGATTTGGCAAGGTCTACAAAGGAAGACTAACAGATGGTACACTAGTAGCCGTCAAGAGATTGAAAGAGGAGAGGACACCTGGTGGGGAGCTACAATTTCAAACAGAAGTTGAGATGATTAGTATGGCTGTACACAGAAACTTATTGCGTCTTCGTGGATTCTGTATGACACCAACAGAAAGGTTGCTTGTGTACCCATACATGGCTAACGGAAGTGTTGCATCACGTCTAAGAGGTACTTTTTTGCCTTGTTTCTCCACTTTTTCAGATTGTTGTAAGGCTTGATATAATGTAGAAAAGAATATATATAACTGGCTTATATTTTTAGAACGAGGGCCAGCTGAACCGCCACTGGATTGGCAAACGAGAAGAAGAATTGCATTGGGTTCTGCCAGGGGCCTCTCCTATTTACATGATCACTGTGATCCAAAGATCATCCATCGTGATGTGAAAGCTGCAAATATTTTATTAGATGAAGACTTTGAAGCTGTAGTGGGGGATTTTGGTTTGGCCAAACTAATGGATTACAAGGATACCCATGTAACAACTGCTGTGCGTGGAACAATTGGGCATATCGCACCAGAATATCTTTCAACAGGAAAATCCTCAGAGAAAACTGATGTATTCGGTTATGGAATTATGCTTTTGGAGCTTATTACAGGACAGCGTGCTTTTGATCTTGCTCGGCTTGCCAATGACGACGATGTCATGCTACTTGACTGGGTAATTAACTAGTGAGGTTTCCTTGGTTCAGATATAATGCTTTTATGTACTAACTTCTCACTTTAAATTGAGTATCCGTTTCCCTCCTTTTCCCG')
+horvu2 <- strsplit(horvu, split = NULL)
+horvu3 <- horvu2[[1]][] #1399 is length of CDS
+length(horvu3) #to check length of contig
+
+
+exon1 <- horvu3[45:444]
+length(exon1) #length of exon in bp
+lexon1 <- paste(exon1, collapse = "") #output of sequence as '1 character' string
+
+exon2 <- horvu3[548:619]
+length(exon2) #length of exon in bp
+lexon2 <- paste(exon2, collapse = "") #output of sequence as '1 character' string
+
+exon3 <- horvu3[735:847]
+length(exon3) #length of exon in bp
+lexon3 <- paste(exon3, collapse = "") #output of sequence as '1 character' string
+
+exon4 <- horvu3[1423:1557]
+length(exon4) #length of exon in bp
+lexon4 <- paste(exon4, collapse = "") #output of sequence as '1 character' string
+
+exon5 <- horvu3[1635:1976]
+length(exon5) #length of exon in bp
+lexon5 <- paste(exon5, collapse = "") #output of sequence as '1 character' string
+
+exon6 <- horvu3[2070:2406]
+length(exon6) #length of exon in bp
+lexon6 <- paste(exon6, collapse = "") #output of sequence as '1 character' string
+
+length(exon1)
+length(exon2)
+length(exon3)
+length(exon4)
+length(exon5)
+length(exon6)
+
+BAK1cDNA <- c(lexon1, lexon2, lexon3, lexon4, lexon5, lexon6)
+BAK1cDNA_collapsed <- paste(BAK1cDNA, collapse = "")
+
+
+intron1 <- horvu3[445:547]
+length(intron1) #length of intron in bp
+lintron1 <- paste(intron1, collapse = "") #output of sequence as '1 character' string
+
+intron2 <- horvu3[620:734]
+length(intron2) #length of intron in bp
+lintron2 <- paste(intron2, collapse = "") #output of sequence as '1 character' string
+
+intron3 <- horvu3[848:1422]
+length(intron3) #length of intron in bp
+lintron3 <- paste(intron3, collapse = "") #output of sequence as '1 character' string
+
+intron4 <- horvu3[1558:1634]
+length(intron4) #length of intron in bp
+lintron4 <- paste(intron4, collapse = "") #output of sequence as '1 character' string
+
+intron5 <- horvu3[1977:2069]
+length(intron5) #length of intron in bp
+lintron5 <- paste(intron5, collapse = "") #output of sequence as '1 character' string
+
+length(intron1)
+length(intron2)
+length(intron3)
+length(intron4)
+length(intron5)
+
+
+complete <- c(lexon1, '[', length(intron1), ']', lexon2, '[', length(intron2), ']', lexon3, '[', length(intron3), ']', lexon4, '[', length(intron4), ']', lexon5, '[', length(intron5), ']', lexon6)
+UPL_design <- paste(complete, collapse = "")
+UPL_design
+
+seqlength <- length(exon1) + length(intron1) +length (exon2) + length(intron2) + length(exon3) + length(intron3) + length(exon4) + length(intron4) + length(exon5) + length(intron5) + length(exon6)
+seqlength
+
+cdslength <- length(exon1) + length (exon2) + length(exon3) + length(exon4) + length(exon5) + length(exon6)
+cdslength
