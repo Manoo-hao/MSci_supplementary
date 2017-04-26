@@ -21,7 +21,8 @@ extract information about diversity-indices and differential abundance
 
 ### Supplementary methods 4:
 Procedure used for the extraction of the putative 
-HvBAK gDNA sequence from the barley genome. R-studio code for converting 
+<i>Hv</i>BAK gDNA sequence from the barley genome. R-studio code for 
+converting 
 gDNA sequence into cDNA sequence with annotated introns, compatible for 
 designing intron-spanning primers via the Roche Assay Design center
 
